@@ -12,7 +12,8 @@ import {
   addTicketMessage,
   addNotification,
   getNotifications,
-  isPostgresConnected
+  isPostgresConnected,
+  getDashboardData
 } from './src/dataStore';
 import { Ticket, TicketMessage, NotificationLog, TicketStatus, TicketPriority } from './src/types';
 
@@ -307,6 +308,16 @@ async function startServer() {
       res.json(logs);
     } catch (err: any) {
       res.status(500).json({ error: 'Failed to access audit notification logs.', details: err.message });
+    }
+  });
+
+  // 8. Analytics & Reporting Dashboard
+  app.get('/api/dashboard', async (req, res) => {
+    try {
+      const dashboardData = await getDashboardData();
+      res.json(dashboardData);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to generate dashboard data.', details: err.message });
     }
   });
 

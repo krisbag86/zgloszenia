@@ -410,6 +410,66 @@ export default function RealtimeTicket({
 
 ---
 
+## Part 5.1: Dashboard Component Pattern
+
+### Recommended Dashboard Structure
+
+- `src/components/Dashboard.tsx`
+- uses `fetch('/api/dashboard')`
+- renders metric cards, trend charts, category summaries, and agent performance
+- listens for WebSocket events and refreshes when ticket or notification activity changes
+
+### Example Props & API shape
+
+```typescript
+interface DashboardData {
+  metrics: TicketMetrics;
+  trends: TicketTrendData[];
+  agentPerformance: AgentPerformance[];
+  categoryBreakdown: CategoryBreakdown[];
+  priorityBreakdown: PriorityBreakdown[];
+  generatedAt: string;
+}
+
+interface DashboardProps {
+  onError: (message: string) => void;
+}
+```
+
+### Fetching and real-time updates
+
+```typescript
+useEffect(() => {
+  const fetchDashboard = async () => {
+    const response = await fetch('/api/dashboard');
+    const dashboard = await response.json();
+    setData(dashboard);
+  };
+
+  fetchDashboard();
+
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+  const ws = new WebSocket(wsUrl);
+  ws.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+    if (['ticket_created', 'ticket_updated', 'notification_logged'].includes(payload.type)) {
+      fetchDashboard();
+    }
+  };
+
+  return () => ws.close();
+}, [onError]);
+```
+
+### Rendering charts
+
+- Use `Recharts` for fast chart rendering
+- `LineChart` for ticket trends
+- `PieChart` for status and priority distribution
+- `BarChart` for category and agent metrics
+
+---
+
 ## Part 6: Loading & Error States
 
 ```typescript

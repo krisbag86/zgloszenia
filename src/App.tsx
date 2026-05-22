@@ -4,8 +4,9 @@ import TicketForm from './components/TicketForm';
 import TicketDashboard from './components/TicketDashboard';
 import NotificationCenter from './components/NotificationCenter';
 import DockerGuide from './components/DockerGuide';
+import Dashboard from './components/Dashboard';
 import { 
-  Wifi, WifiOff, Database, Layers, ShieldCheck, Mail, Cpu, RefreshCw, AlertTriangle
+  Wifi, WifiOff, Database, Layers, ShieldCheck, Mail, Cpu, RefreshCw, AlertTriangle, BarChart3
 } from 'lucide-react';
 
 // Hardcoded users list to switch identities for testing/demonstration of absolute RBAC rules
@@ -20,7 +21,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]); // Default to Client Jane Doe
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [logs, setLogs] = useState<NotificationLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'submit' | 'mailbox' | 'docker'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'submit' | 'mailbox' | 'docker'>('dashboard');
   
   // Real-time Connection status trackers
   const [wsConnected, setWsConnected] = useState(false);
@@ -360,6 +361,20 @@ export default function App() {
               <span className="text-xl group-hover:scale-110 transition-transform">🐳</span>
               <span className="text-[9px] uppercase tracking-wider font-bold">Docker</span>
             </button>
+
+            <button
+               id="nav-btn-analytics"
+               onClick={() => setActiveTab('analytics')}
+               className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all cursor-pointer group select-none ${
+                 activeTab === 'analytics'
+                   ? 'bg-white/10 text-white font-bold shadow-xs'
+                   : 'text-indigo-300/80 hover:bg-white/5 hover:text-indigo-100'
+               }`}
+               title="Analityka i raporty"
+            >
+              <span className="text-xl group-hover:scale-110 transition-transform">📊</span>
+              <span className="text-[9px] uppercase tracking-wider font-bold">Analizy</span>
+            </button>
           </div>
         </div>
 
@@ -423,14 +438,14 @@ export default function App() {
           </div>
 
           {/* Selector Navigation Row */}
-          <div className="grid grid-cols-4 gap-1.5 text-center text-[10px] select-none font-bold">
+          <div className="grid grid-cols-5 gap-1 text-center text-[9px] select-none font-bold">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`py-2 rounded-lg transition-colors cursor-pointer ${
                 activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-indigo-900/50 text-indigo-300'
               }`}
             >
-              📋 Zgłoszenia
+              📋 Zgł.
             </button>
             <button
               onClick={() => setActiveTab('submit')}
@@ -446,9 +461,9 @@ export default function App() {
                 activeTab === 'mailbox' ? 'bg-indigo-600 text-white' : 'bg-indigo-900/50 text-indigo-300'
               }`}
             >
-              ✉️ E-maile
+              ✉️ Mail
               {logs.length > 0 && (
-                <span className="absolute -top-1 right-0 bg-red-500 text-white text-[8px] px-1 rounded-full">{logs.length}</span>
+                <span className="absolute -top-1 right-0 bg-red-500 text-white text-[7px] px-1 rounded-full">{logs.length}</span>
               )}
             </button>
             <button
@@ -458,6 +473,14 @@ export default function App() {
               }`}
             >
               🐳 Docker
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`py-2 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'analytics' ? 'bg-indigo-600 text-white' : 'bg-indigo-900/50 text-indigo-300'
+              }`}
+            >
+              📊 Analizy
             </button>
           </div>
         </div>
@@ -572,6 +595,10 @@ export default function App() {
 
               {activeTab === 'docker' && (
                 <DockerGuide />
+              )}
+
+              {activeTab === 'analytics' && (
+                <Dashboard onError={setApiError} />
               )}
             </div>
           )}
