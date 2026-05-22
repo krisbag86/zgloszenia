@@ -10,8 +10,8 @@
       "clientId": "client-99",
       "clientName": "Alice Dev",
       "clientEmail": "alice@eng.com",
-      "createdAt": "2026-05-22T22:14:25.092Z",
-      "updatedAt": "2026-05-22T22:14:25.094Z",
+      "createdAt": "2026-05-22T22:31:04.907Z",
+      "updatedAt": "2026-05-22T22:31:04.909Z",
       "attachments": [],
       "messages": [
         {
@@ -21,7 +21,7 @@
           "senderName": "Marcus Miller (Senior Ops)",
           "senderRole": "agent",
           "message": "Added pg_pool stats logging. Leakage was on server index. Fixed connections overflow.",
-          "createdAt": "2026-05-22T22:14:25.094Z",
+          "createdAt": "2026-05-22T22:31:04.909Z",
           "isInternal": false
         }
       ],
@@ -37,7 +37,7 @@
       "recipientName": "Alice Dev",
       "subject": "IT Support Ticket Update: tk-test-999 is now RESOLVED",
       "body": "Hi Alice, your ticket connection leakage is fixed.",
-      "sentAt": "2026-05-22T22:14:25.094Z",
+      "sentAt": "2026-05-22T22:31:04.909Z",
       "status": "simulated"
     }
   ]

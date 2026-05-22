@@ -14,6 +14,7 @@ import NotificationCenter from "./components/NotificationCenter";
 import DockerGuide from "./components/DockerGuide";
 import Dashboard from "./components/Dashboard";
 import { ToastContainer, ToastItem, ToastType } from "./components/Toast";
+import LoginPage from "./components/LoginPage";
 import {
   Wifi,
   WifiOff,
@@ -25,46 +26,28 @@ import {
   RefreshCw,
   AlertTriangle,
   BarChart3,
+  LogOut,
 } from "lucide-react";
 
-// Hardcoded users list to switch identities for testing/demonstration of absolute RBAC rules
-const DEMO_USERS: User[] = [
-  {
-    id: "client-1",
-    name: "Jane Doe",
-    email: "jane.doe@workplace.com",
-    role: "client",
-  },
-  {
-    id: "client-2",
-    name: "John Smith",
-    email: "john.smith@co.com",
-    role: "client",
-  },
-  {
-    id: "agent-1",
-    name: "Alex Vance",
-    email: "alex.vance@workplace.com",
-    role: "agent",
-  },
-  {
-    id: "admin-1",
-    name: "Krzysztof Graczyk",
-    email: "krzysztof@bagietka.pl",
-    role: "admin",
-  },
-];
+// Single admin account used for testing
+const ADMIN_USER: User = {
+  id: "admin-1",
+  name: "Administrator",
+  email: "admin@bagietka.pl",
+  role: "admin",
+};
 
-// Support staff roster — single source of truth, passed down as a prop
-const SUPPORT_ENGINEERS = [
-  { id: "agent-1", name: "Alex Vance (Wsparcie IT)" },
-  { id: "agent-2", name: "Sarah Connor (SysOps)" },
-  { id: "agent-10", name: "Marcus Miller (Starszy Specjalista)" },
-  { id: "admin-1", name: "Krzysztof Graczyk (Dyrektor IT)" },
-];
+// Hardcoded login credentials — change before going to production
+const VALID_CREDENTIALS = { username: "admin", password: "admin" };
+
+// Support staff list — update with real IT team names/IDs
+const SUPPORT_ENGINEERS = [{ id: "admin-1", name: "Administrator (IT)" }];
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]); // Default to Client Jane Doe
+  const currentUser: User = ADMIN_USER;
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(
+    () => sessionStorage.getItem("it_auth") === "1",
+  );
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [activeTab, setActiveTab] = useState<
@@ -135,6 +118,26 @@ export default function App() {
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const handleLogin = useCallback(
+    (username: string, password: string): boolean => {
+      if (
+        username === VALID_CREDENTIALS.username &&
+        password === VALID_CREDENTIALS.password
+      ) {
+        setIsLoggedIn(true);
+        sessionStorage.setItem("it_auth", "1");
+        return true;
+      }
+      return false;
+    },
+    [],
+  );
+
+  const handleLogout = useCallback(() => {
+    setIsLoggedIn(false);
+    sessionStorage.removeItem("it_auth");
   }, []);
 
   // Set up WebSocket listener
@@ -380,12 +383,9 @@ export default function App() {
     }
   };
 
-  const handleUserSwitch = (userId: string) => {
-    const found = DEMO_USERS.find((user) => user.id === userId);
-    if (found) {
-      setCurrentUser(found);
-    }
-  };
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row font-sans selection:bg-indigo-100 antialiased">
@@ -511,7 +511,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bottom: user selector */}
+        {/* Bottom: current user + logout */}
         <div
           id="bento-sidebar-bottom"
           className="flex flex-col items-center gap-2 w-full px-2"
@@ -526,18 +526,17 @@ export default function App() {
               .map((n) => n[0])
               .join("")}
           </div>
-          <select
-            value={currentUser.id}
-            onChange={(e) => handleUserSwitch(e.target.value)}
-            className="w-full text-[9px] bg-indigo-900/50 border border-indigo-800 text-indigo-200 rounded-lg px-1.5 py-1 focus:outline-none cursor-pointer font-mono font-bold"
-            title="Zmień użytkownika"
+          <span className="text-[8px] uppercase tracking-widest text-indigo-400 font-bold font-mono">
+            {currentUser.role}
+          </span>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-indigo-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer select-none"
+            title="Wyloguj"
           >
-            {DEMO_USERS.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name.split(" ")[0]} ({u.role})
-              </option>
-            ))}
-          </select>
+            <LogOut className="w-3 h-3" />
+            Wyloguj
+          </button>
         </div>
       </nav>
 
@@ -566,18 +565,14 @@ export default function App() {
               </div>
             </div>
 
-            {/* User selector */}
-            <select
-              value={currentUser.id}
-              onChange={(e) => handleUserSwitch(e.target.value)}
-              className="bg-indigo-900/80 border border-indigo-700 text-[10px] text-indigo-100 rounded-lg px-2 py-1 focus:outline-none cursor-pointer font-sans font-semibold max-w-[130px] truncate"
+            {/* Logout button */}
+            <button
+              onClick={handleLogout}
+              className="w-8 h-8 rounded-full bg-indigo-900 border border-indigo-700 flex items-center justify-center text-indigo-300 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+              title="Wyloguj"
             >
-              {DEMO_USERS.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.role})
-                </option>
-              ))}
-            </select>
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Selector Navigation Row */}

@@ -58,7 +58,12 @@ const INITIAL_SEED: DBState = {
 };
 
 // Memory store fallback
-let memoryDB: DBState = { ...INITIAL_SEED };
+let memoryDB: DBState = { tickets: [], notifications: [] };
+
+// Reset to empty state — used by the test suite between runs
+export function resetStore(): void {
+  memoryDB = { tickets: [], notifications: [] };
+}
 
 // Save helper for JSON store
 function saveJSONStore() {

@@ -8,11 +8,15 @@ import {
   addTicketMessage,
   addNotification,
   getNotifications,
+  resetStore,
 } from "../src/dataStore";
 import { Ticket, TicketMessage, NotificationLog } from "../src/types";
 
 // Fast core unit tests run with Node.js built-in runner.
 test("IT Support Core System Test Suite", async (t) => {
+  // Wipe any persisted data from previous runs before the suite starts
+  resetStore();
+
   await t.test("1. Ticket store initialises empty", async () => {
     const list = await getTickets();
     assert.ok(Array.isArray(list), "Tickets list must be an array");
