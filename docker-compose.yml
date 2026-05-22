@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # 1. Full-stack IT Support Web Application Node.js + Express + WS Server
@@ -9,7 +9,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://support_user:SecureSupportPassword99@db:5432/support_tickets
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - DB_SSL=false
     depends_on:
       db:
@@ -23,9 +23,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=support_user
-      - POSTGRES_PASSWORD=SecureSupportPassword99
-      - POSTGRES_DB=support_tickets
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -42,8 +42,8 @@ services:
     ports:
       - "5050:80"
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@bagietka.pl
-      - PGADMIN_DEFAULT_PASSWORD=AdminPassword_99
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
     depends_on:
       - db
     restart: always
