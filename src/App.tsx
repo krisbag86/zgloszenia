@@ -55,6 +55,14 @@ const DEMO_USERS: User[] = [
   },
 ];
 
+// Support staff roster — single source of truth, passed down as a prop
+const SUPPORT_ENGINEERS = [
+  { id: "agent-1", name: "Alex Vance (Wsparcie IT)" },
+  { id: "agent-2", name: "Sarah Connor (SysOps)" },
+  { id: "agent-10", name: "Marcus Miller (Starszy Specjalista)" },
+  { id: "admin-1", name: "Krzysztof Graczyk (Dyrektor IT)" },
+];
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]); // Default to Client Jane Doe
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -72,8 +80,15 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [unseenUpdates, setUnseenUpdates] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
+  // Ref so the WS closure always sees the current tab without re-subscribing
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    if (activeTab === "dashboard") setUnseenUpdates(0);
+  }, [activeTab]);
 
   // Core API fetch routines
   const fetchTickets = useCallback(async () => {
@@ -151,14 +166,17 @@ export default function App() {
 
             if (data.type === "ticket_created") {
               setTickets((prev) => {
-                // Deduplicate just in case
                 if (prev.some((t) => t.id === data.ticket.id)) return prev;
                 return [data.ticket, ...prev];
               });
+              if (activeTabRef.current !== "dashboard")
+                setUnseenUpdates((c) => c + 1);
             } else if (data.type === "ticket_updated") {
               setTickets((prev) =>
                 prev.map((t) => (t.id === data.ticket.id ? data.ticket : t)),
               );
+              if (activeTabRef.current !== "dashboard")
+                setUnseenUpdates((c) => c + 1);
             } else if (data.type === "notification_logged") {
               setLogs((prev) => {
                 if (prev.some((l) => l.id === data.log.id)) return prev;
@@ -397,9 +415,16 @@ export default function App() {
               }`}
               title="Lista spraw wsparcia IT"
             >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                📋
-              </span>
+              <div className="relative">
+                <span className="text-xl group-hover:scale-110 transition-transform inline-block">
+                  📋
+                </span>
+                {unseenUpdates > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[8px] font-bold px-1 rounded-full leading-tight min-w-[16px] text-center">
+                    {unseenUpdates > 99 ? "99+" : unseenUpdates}
+                  </span>
+                )}
+              </div>
               <span className="text-[9px] uppercase tracking-wider font-bold">
                 Zgłoszenia
               </span>
@@ -486,24 +511,33 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bottom Avatar profile */}
+        {/* Bottom: user selector */}
         <div
           id="bento-sidebar-bottom"
-          className="flex flex-col items-center gap-3 w-full px-2"
+          className="flex flex-col items-center gap-2 w-full px-2"
         >
           <div className="w-[60%] border-t border-indigo-900/40 my-1"></div>
           <div
             className="w-10 h-10 rounded-xl bg-indigo-900/50 border border-indigo-800 flex items-center justify-center text-[11px] font-bold text-indigo-100 font-mono tracking-wider select-none shrink-0"
-            title={`Aktywny profil: ${currentUser.name}`}
+            title={currentUser.name}
           >
             {currentUser.name
               .split(" ")
               .map((n) => n[0])
               .join("")}
           </div>
-          <span className="text-[7px] uppercase tracking-widest text-indigo-400 font-bold font-mono">
-            {currentUser.role}
-          </span>
+          <select
+            value={currentUser.id}
+            onChange={(e) => handleUserSwitch(e.target.value)}
+            className="w-full text-[9px] bg-indigo-900/50 border border-indigo-800 text-indigo-200 rounded-lg px-1.5 py-1 focus:outline-none cursor-pointer font-mono font-bold"
+            title="Zmień użytkownika"
+          >
+            {DEMO_USERS.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name.split(" ")[0]} ({u.role})
+              </option>
+            ))}
+          </select>
         </div>
       </nav>
 
@@ -512,40 +546,6 @@ export default function App() {
         id="bento-workspace-root"
         className="flex-1 min-w-0 flex flex-col min-h-screen"
       >
-        {/* Testing Suite identity switcher (Modern Top Banner) */}
-        <div
-          id="bento-identity-switcher-banner"
-          className="bg-slate-900 px-4 py-2 text-slate-305 border-b border-slate-950 text-xs flex flex-wrap justify-between items-center gap-3 z-30 shadow-inner"
-        >
-          <div className="flex items-center gap-2">
-            <span className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-2 py-0.5 rounded text-[9px] uppercase font-mono font-bold tracking-wider text-white shadow-sm">
-              Środowisko testowe RBAC
-            </span>
-            <span className="text-slate-400 font-medium">
-              Zmień portal użytkownika, aby sprawdzić uprawnienia roli w czasie
-              rzeczywistym:
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label htmlFor="user-switch-select" className="sr-only">
-              Wybierz portal
-            </label>
-            <select
-              id="user-switch-select"
-              value={currentUser.id}
-              onChange={(e) => handleUserSwitch(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-[11px] text-slate-100 rounded-lg px-2.5 py-1 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-sans font-semibold cursor-pointer shadow-xs transition-colors hover:bg-slate-750"
-            >
-              {DEMO_USERS.map((user) => (
-                <option key={user.id} value={user.id}>
-                  Portal {user.role.toUpperCase()}: {user.name} ({user.email})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         {/* Mobile top navigation header (Only visible below md) */}
         <div
           id="bento-mobile-header"
@@ -566,13 +566,18 @@ export default function App() {
               </div>
             </div>
 
-            {/* Quick action role display */}
-            <div className="w-8 h-8 rounded-full bg-indigo-900 border border-indigo-700 flex items-center justify-center text-xs font-bold text-indigo-100 select-none">
-              {currentUser.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </div>
+            {/* User selector */}
+            <select
+              value={currentUser.id}
+              onChange={(e) => handleUserSwitch(e.target.value)}
+              className="bg-indigo-900/80 border border-indigo-700 text-[10px] text-indigo-100 rounded-lg px-2 py-1 focus:outline-none cursor-pointer font-sans font-semibold max-w-[130px] truncate"
+            >
+              {DEMO_USERS.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.role})
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Selector Navigation Row */}
@@ -585,7 +590,14 @@ export default function App() {
                   : "bg-indigo-900/50 text-indigo-300"
               }`}
             >
-              📋 Zgł.
+              <span className="relative inline-flex items-center gap-1">
+                📋 Zgł.
+                {unseenUpdates > 0 && (
+                  <span className="bg-rose-500 text-white text-[7px] font-bold px-1 rounded-full leading-tight">
+                    {unseenUpdates > 99 ? "99+" : unseenUpdates}
+                  </span>
+                )}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab("submit")}
@@ -756,6 +768,7 @@ export default function App() {
                 <TicketDashboard
                   tickets={tickets}
                   currentUser={currentUser}
+                  supportEngineers={SUPPORT_ENGINEERS}
                   onUpdateStatus={handleUpdateStatus}
                   onUpdatePriority={handleUpdatePriority}
                   onAssignTicket={handleAssignTicket}

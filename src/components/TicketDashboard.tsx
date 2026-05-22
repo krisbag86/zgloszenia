@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Ticket,
   TicketStatus,
@@ -7,6 +7,7 @@ import {
   UserRole,
 } from "../types";
 import { STORE_LOCATIONS } from "../data/stores";
+import { timeAgo } from "../utils/timeAgo";
 import {
   Search,
   Filter,
@@ -50,6 +51,7 @@ interface TicketDashboardProps {
     messageText: string,
     isInternal: boolean,
   ) => Promise<void>;
+  supportEngineers: { id: string; name: string }[];
 }
 
 export default function TicketDashboard({
@@ -59,6 +61,7 @@ export default function TicketDashboard({
   onUpdatePriority,
   onAssignTicket,
   onPostMessage,
+  supportEngineers,
 }: TicketDashboardProps) {
   const [selectedId, setSelectedId] = useState<string | null>(
     tickets[0]?.id || null,
@@ -77,13 +80,16 @@ export default function TicketDashboard({
   const [internalNote, setInternalNote] = useState(false);
   const [submittingReply, setSubmittingReply] = useState(false);
 
-  // Hardcoded Support Personnel list to assign tickets to
-  const SUPPORT_ENGINEERS = [
-    { id: "agent-1", name: "Alex Vance (Wsparcie IT)" },
-    { id: "agent-2", name: "Sarah Connor (SysOps)" },
-    { id: "agent-10", name: "Marcus Miller (Starszy Specjalista)" },
-    { id: "admin-1", name: "Krzysztof Graczyk (Dyrektor IT)" },
-  ];
+  // Unread tracking: initialise every loaded ticket as already seen
+  const [lastSeen, setLastSeen] = useState<Record<string, number>>(() =>
+    Object.fromEntries(tickets.map((t) => [t.id, Date.now()])),
+  );
+
+  // Refs for keyboard shortcuts
+  const searchRef = useRef<HTMLInputElement>(null);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
+  const filteredTicketsRef = useRef<Ticket[]>([]);
+  const selectedIdRef = useRef(selectedId);
 
   const activeTicket = useMemo(() => {
     return tickets.find((t) => t.id === selectedId) || null;
@@ -190,6 +196,54 @@ export default function TicketDashboard({
     locationFilter,
     sortBy,
   ]);
+
+  // Mark ticket as read + keep selectedId ref current
+  useEffect(() => {
+    if (selectedId) {
+      setLastSeen((prev) => ({ ...prev, [selectedId]: Date.now() }));
+      selectedIdRef.current = selectedId;
+    }
+  }, [selectedId]);
+
+  // Keep filteredTickets ref current (used by keyboard handler)
+  useEffect(() => {
+    filteredTicketsRef.current = filteredTickets;
+  }, [filteredTickets]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      const isTyping =
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+      // "/" → focus search
+      if (e.key === "/" && !isTyping) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      // Escape → clear & blur search
+      if (e.key === "Escape" && document.activeElement === searchRef.current) {
+        setSearchTerm("");
+        searchRef.current?.blur();
+        return;
+      }
+      // ↑ / ↓ → navigate ticket list
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !isTyping) {
+        e.preventDefault();
+        const list = filteredTicketsRef.current;
+        const idx = list.findIndex((t) => t.id === selectedIdRef.current);
+        const next =
+          e.key === "ArrowDown"
+            ? list[Math.min(idx + 1, list.length - 1)]
+            : list[Math.max(idx - 1, 0)];
+        if (next) setSelectedId(next.id);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []); // refs keep this stable across renders
 
   // Reset selected ticket if some other state changes it or filter hides it
   const displayTicket = useMemo(() => {
@@ -410,8 +464,9 @@ export default function TicketDashboard({
             <div className="relative">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
               <input
+                ref={searchRef}
                 type="text"
-                placeholder="Szukaj po tytule, ID lub zgłaszającym..."
+                placeholder="Szukaj… (wciśnij / aby skupić)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-505 bg-slate-50/50 font-sans text-slate-800"
@@ -563,14 +618,40 @@ export default function TicketDashboard({
                         : "border-slate-205 hover:border-slate-350 hover:bg-slate-50/60 bg-white shadow-2xs"
                     }`}
                   >
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="font-mono text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                        {t.id}
-                      </span>
-                      <span className="text-[9px] font-medium text-slate-400">
-                        {formattedTime(t.createdAt).split(" ")[1]}
-                      </span>
-                    </div>
+                    {(() => {
+                      const lastSeenAt = lastSeen[t.id] ?? 0;
+                      const unreadCount = t.messages.filter((m) => {
+                        const msgTime = new Date(m.createdAt).getTime();
+                        if (msgTime <= lastSeenAt) return false;
+                        if (currentUser.role === "client")
+                          return (
+                            (m.senderRole === "agent" ||
+                              m.senderRole === "admin") &&
+                            !m.isInternal
+                          );
+                        return m.senderRole === "client";
+                      }).length;
+                      return (
+                        <div className="flex justify-between items-center gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                              {t.id}
+                            </span>
+                            {unreadCount > 0 && (
+                              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-500 text-white min-w-[16px]">
+                                {unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className="text-[9px] font-medium text-slate-400"
+                            title={formattedTime(t.createdAt)}
+                          >
+                            {timeAgo(t.createdAt)}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     <div>
                       <p className="font-bold text-slate-800 line-clamp-1 truncate font-sans text-xs mb-0.5">
@@ -595,6 +676,29 @@ export default function TicketDashboard({
                         👤 {t.clientName.split(" ")[0]}
                       </span>
                     </div>
+
+                    {/* Quick-assign to self — agents/admins only */}
+                    {(currentUser.role === "agent" ||
+                      currentUser.role === "admin") &&
+                      t.assignedTo !== currentUser.id &&
+                      t.status !== "resolved" &&
+                      t.status !== "closed" && (
+                        <div className="border-t border-slate-100 mt-0.5 pt-2 flex">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAssignTicket(
+                                t.id,
+                                currentUser.id,
+                                currentUser.name,
+                              );
+                            }}
+                            className="text-[9px] font-bold text-indigo-500 hover:text-indigo-700 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <UserCheck className="w-3 h-3" /> Przypisz do mnie
+                          </button>
+                        </div>
+                      )}
                   </button>
                 );
               })
@@ -701,7 +805,7 @@ export default function TicketDashboard({
                           value={displayTicket.assignedTo || ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            const found = SUPPORT_ENGINEERS.find(
+                            const found = supportEngineers.find(
                               (se) => se.id === val,
                             );
                             if (found) {
@@ -715,7 +819,7 @@ export default function TicketDashboard({
                           className="bg-white border border-slate-250 text-[10px] font-bold text-slate-707 rounded-lg px-2.5 py-1 focus:outline-hidden focus:border-indigo-500 cursor-pointer shadow-2xs font-sans"
                         >
                           <option value="">Przypisz pracownika...</option>
-                          {SUPPORT_ENGINEERS.map((se) => (
+                          {supportEngineers.map((se) => (
                             <option key={se.id} value={se.id}>
                               {se.name}
                             </option>
@@ -723,11 +827,25 @@ export default function TicketDashboard({
                         </select>
                       </div>
                     </div>
-                  ) : (
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest font-mono">
-                      (Opcje zablokowane dla roli klienta)
-                    </div>
-                  )}
+                  ) : displayTicket.clientId === currentUser.id &&
+                    displayTicket.status !== "closed" ? (
+                    <button
+                      onClick={() =>
+                        onUpdateStatus(
+                          displayTicket.id,
+                          displayTicket.status === "resolved"
+                            ? "closed"
+                            : "resolved",
+                        )
+                      }
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {displayTicket.status === "resolved"
+                        ? "Zamknij sprawę"
+                        : "Oznacz jako rozwiązane"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -863,14 +981,14 @@ export default function TicketDashboard({
 
                 {/* Informative timing specs */}
                 <div className="text-[10px] text-slate-400 font-bold font-mono tracking-wide flex flex-wrap gap-4 border-t border-slate-100 pt-4 uppercase">
-                  <div>
+                  <div title={formattedTime(displayTicket.createdAt)}>
                     <span className="text-slate-300">Zgłoszono:</span>{" "}
-                    {formattedTime(displayTicket.createdAt)} przez{" "}
+                    {timeAgo(displayTicket.createdAt)} przez{" "}
                     {displayTicket.clientName.split(" ")[0]}
                   </div>
-                  <div>
+                  <div title={formattedTime(displayTicket.updatedAt)}>
                     <span className="text-slate-300">Ostatnia zmiana:</span>{" "}
-                    {formattedTime(displayTicket.updatedAt)}
+                    {timeAgo(displayTicket.updatedAt)}
                   </div>
                 </div>
               </div>
@@ -937,8 +1055,11 @@ export default function TicketDashboard({
                                 </span>
                               )}
                             </span>
-                            <span className="text-slate-400 font-mono">
-                              {formattedTime(m.createdAt).split(" ")[1]}
+                            <span
+                              className="text-slate-400 font-mono"
+                              title={formattedTime(m.createdAt)}
+                            >
+                              {timeAgo(m.createdAt)}
                             </span>
                           </div>
                           <p className="whitespace-pre-line text-[11px] text-slate-707">
@@ -957,13 +1078,20 @@ export default function TicketDashboard({
                 >
                   <div>
                     <textarea
+                      ref={replyRef}
                       rows={2}
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                          e.preventDefault();
+                          handleReplySubmit(e as unknown as React.FormEvent);
+                        }
+                      }}
                       placeholder={
                         internalNote
                           ? "Wprowadź poufną notatkę wewnętrzną wsparcia IT..."
-                          : "Wpisz odpowiedź do klienta lub opis podjętych działań..."
+                          : "Wpisz odpowiedź… (Ctrl+Enter aby wysłać)"
                       }
                       className="w-full px-3.5 py-2.5 text-xs border border-slate-205 rounded-xl focus:outline-hidden focus:border-indigo-505 focus:ring-1 focus:ring-indigo-500 bg-slate-50/60 font-sans text-slate-850 shadow-inner"
                       required

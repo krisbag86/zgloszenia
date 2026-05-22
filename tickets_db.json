@@ -10,8 +10,8 @@
       "clientId": "client-99",
       "clientName": "Alice Dev",
       "clientEmail": "alice@eng.com",
-      "createdAt": "2026-05-22T21:23:47.540Z",
-      "updatedAt": "2026-05-22T21:23:47.542Z",
+      "createdAt": "2026-05-22T22:14:25.092Z",
+      "updatedAt": "2026-05-22T22:14:25.094Z",
       "attachments": [],
       "messages": [
         {
@@ -21,146 +21,12 @@
           "senderName": "Marcus Miller (Senior Ops)",
           "senderRole": "agent",
           "message": "Added pg_pool stats logging. Leakage was on server index. Fixed connections overflow.",
-          "createdAt": "2026-05-22T21:23:47.542Z",
+          "createdAt": "2026-05-22T22:14:25.094Z",
           "isInternal": false
         }
       ],
       "assignedTo": "agent-10",
       "assignedName": "Marcus Miller (Senior Ops)"
-    },
-    {
-      "id": "tk-test-999",
-      "title": "Database connection pool leakage",
-      "description": "Backend is throwing max connection limits reached errors when running heavy query loops during backups.",
-      "category": "software",
-      "priority": "urgent",
-      "status": "resolved",
-      "clientId": "client-99",
-      "clientName": "Alice Dev",
-      "clientEmail": "alice@eng.com",
-      "createdAt": "2026-05-22T21:15:49.542Z",
-      "updatedAt": "2026-05-22T21:15:49.543Z",
-      "attachments": [],
-      "messages": [
-        {
-          "id": "m-test-1",
-          "ticketId": "tk-test-999",
-          "senderId": "agent-10",
-          "senderName": "Marcus Miller (Senior Ops)",
-          "senderRole": "agent",
-          "message": "Added pg_pool stats logging. Leakage was on server index. Fixed connections overflow.",
-          "createdAt": "2026-05-22T21:15:49.543Z",
-          "isInternal": false
-        }
-      ],
-      "assignedTo": "agent-10",
-      "assignedName": "Marcus Miller (Senior Ops)"
-    },
-    {
-      "id": "tk-test-999",
-      "title": "Database connection pool leakage",
-      "description": "Backend is throwing max connection limits reached errors when running heavy query loops during backups.",
-      "category": "software",
-      "priority": "urgent",
-      "status": "resolved",
-      "clientId": "client-99",
-      "clientName": "Alice Dev",
-      "clientEmail": "alice@eng.com",
-      "createdAt": "2026-05-22T21:11:44.349Z",
-      "updatedAt": "2026-05-22T21:11:44.350Z",
-      "attachments": [],
-      "messages": [
-        {
-          "id": "m-test-1",
-          "ticketId": "tk-test-999",
-          "senderId": "agent-10",
-          "senderName": "Marcus Miller (Senior Ops)",
-          "senderRole": "agent",
-          "message": "Added pg_pool stats logging. Leakage was on server index. Fixed connections overflow.",
-          "createdAt": "2026-05-22T21:11:44.350Z",
-          "isInternal": false
-        }
-      ],
-      "assignedTo": "agent-10",
-      "assignedName": "Marcus Miller (Senior Ops)"
-    },
-    {
-      "id": "tk-101",
-      "title": "VPN Authentication Fails with OAuth2 Error",
-      "description": "Getting connection rejected errors immediately after completing the duo push notification during the workplace VPN initialization. Diagnostics log says: ERR_OAUTH_TOKEN_EXPIRED.",
-      "category": "network",
-      "priority": "high",
-      "status": "in_progress",
-      "clientId": "client-1",
-      "clientName": "Jane Doe",
-      "clientEmail": "jane.doe@workplace.com",
-      "assignedTo": "agent-1",
-      "assignedName": "Alex Vance (IT Support)",
-      "createdAt": "2026-05-22T17:11:44.343Z",
-      "updatedAt": "2026-05-22T19:11:44.343Z",
-      "attachments": [],
-      "messages": [
-        {
-          "id": "m-1",
-          "ticketId": "tk-101",
-          "senderId": "client-1",
-          "senderName": "Jane Doe",
-          "senderRole": "client",
-          "message": "Could we expedite this? I am unable to access the test servers for the release candidate.",
-          "createdAt": "2026-05-22T17:41:44.343Z"
-        },
-        {
-          "id": "m-2",
-          "ticketId": "tk-101",
-          "senderId": "agent-1",
-          "senderName": "Alex Vance (IT Support)",
-          "senderRole": "agent",
-          "message": "Looking into the logs. It seems the VPN gateway LDAP sync failed this morning. Resetting your session token, please try re-authenticating in 5 minutes.",
-          "createdAt": "2026-05-22T19:11:44.343Z"
-        }
-      ]
-    },
-    {
-      "id": "tk-102",
-      "title": "Broken MacBook M3 Keyboard (Liquid Spill)",
-      "description": "My tea spilled onto the enter key. Now the keys 'Q', 'W', and 'Enter' are registers sporadically or trigger repeats. I need a replacement workstation or keyboard repair.",
-      "category": "hardware",
-      "priority": "medium",
-      "status": "open",
-      "clientId": "client-2",
-      "clientName": "John Smith",
-      "clientEmail": "john.smith@co.com",
-      "createdAt": "2026-05-22T09:11:44.343Z",
-      "updatedAt": "2026-05-22T09:11:44.343Z",
-      "attachments": [],
-      "messages": []
-    },
-    {
-      "id": "tk-103",
-      "title": "Access Request for Production Analytics DB",
-      "description": "Need read-only access to PostgreSQL production replicas for generating weekly performance KPI metrics. Manager approved. Role: analytics_readonly.",
-      "category": "access",
-      "priority": "low",
-      "status": "resolved",
-      "clientId": "client-1",
-      "clientName": "Jane Doe",
-      "clientEmail": "jane.doe@workplace.com",
-      "assignedTo": "agent-1",
-      "assignedName": "Alex Vance (IT Support)",
-      "createdAt": "2026-05-20T21:11:44.343Z",
-      "updatedAt": "2026-05-21T21:11:44.343Z",
-      "attachments": [],
-      "messages": [
-        {
-          "id": "m-10",
-          "ticketId": "tk-103",
-          "senderId": "agent-1",
-          "senderName": "Alex Vance (IT Support)",
-          "senderRole": "agent",
-          "message": "Database credentials generated and securely saved to your credentials vault. Verified connectivity.",
-          "createdAt": "2026-05-21T21:11:44.343Z"
-        }
-      ]
     }
   ],
   "notifications": [
@@ -171,37 +37,7 @@
       "recipientName": "Alice Dev",
       "subject": "IT Support Ticket Update: tk-test-999 is now RESOLVED",
       "body": "Hi Alice, your ticket connection leakage is fixed.",
-      "sentAt": "2026-05-22T21:23:47.542Z",
-      "status": "simulated"
-    },
-    {
-      "id": "notif-test-1",
-      "ticketId": "tk-test-999",
-      "recipientEmail": "alice@eng.com",
-      "recipientName": "Alice Dev",
-      "subject": "IT Support Ticket Update: tk-test-999 is now RESOLVED",
-      "body": "Hi Alice, your ticket connection leakage is fixed.",
-      "sentAt": "2026-05-22T21:15:49.543Z",
-      "status": "simulated"
-    },
-    {
-      "id": "notif-test-1",
-      "ticketId": "tk-test-999",
-      "recipientEmail": "alice@eng.com",
-      "recipientName": "Alice Dev",
-      "subject": "IT Support Ticket Update: tk-test-999 is now RESOLVED",
-      "body": "Hi Alice, your ticket connection leakage is fixed.",
-      "sentAt": "2026-05-22T21:11:44.351Z",
-      "status": "simulated"
-    },
-    {
-      "id": "notif-1",
-      "ticketId": "tk-101",
-      "recipientEmail": "jane.doe@workplace.com",
-      "recipientName": "Jane Doe",
-      "subject": "IT Support Update: VPN Authentication Fails with OAuth2 Error",
-      "body": "Hi Jane Doe, your ticket status has changed to In Progress under the assignment of Alex Vance (IT Support). Details: Resetting your session token...",
-      "sentAt": "2026-05-22T19:11:44.343Z",
+      "sentAt": "2026-05-22T22:14:25.094Z",
       "status": "simulated"
     }
   ]

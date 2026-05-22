@@ -1,9 +1,22 @@
-import fs from 'fs';
-import path from 'path';
-import { Pool } from 'pg';
-import { Ticket, NotificationLog, DBState, TicketMessage, TicketStatus, TicketPriority, DashboardData, TicketMetrics, TicketTrendData, AgentPerformance, CategoryBreakdown, PriorityBreakdown } from './types';
+import fs from "fs";
+import path from "path";
+import { Pool } from "pg";
+import {
+  Ticket,
+  NotificationLog,
+  DBState,
+  TicketMessage,
+  TicketStatus,
+  TicketPriority,
+  DashboardData,
+  TicketMetrics,
+  TicketTrendData,
+  AgentPerformance,
+  CategoryBreakdown,
+  PriorityBreakdown,
+} from "./types";
 
-const JSON_DB_PATH = path.join(process.cwd(), 'tickets_db.json');
+const JSON_DB_PATH = path.join(process.cwd(), "tickets_db.json");
 
 // Initialize Pool depending on environment variables
 let pool: Pool | null = null;
@@ -16,116 +29,32 @@ const pgConfig = {
   user: process.env.DB_USER || undefined,
   password: process.env.DB_PASSWORD || undefined,
   database: process.env.DB_NAME || undefined,
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+  ssl:
+    process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
 };
 
 if (pgConfig.connectionString || (pgConfig.host && pgConfig.user)) {
   try {
     pool = new Pool(pgConfig);
     usePostgres = true;
-    console.log('PostgreSQL configuration detected. Trying to connect...');
+    console.log("PostgreSQL configuration detected. Trying to connect...");
   } catch (err) {
-    console.error('Failed to configure PostgreSQL pool, falling back to JSON. Error:', err);
+    console.error(
+      "Failed to configure PostgreSQL pool, falling back to JSON. Error:",
+      err,
+    );
     usePostgres = false;
   }
 } else {
-  console.log('No PostgreSQL configuration found. Defaulting to local JSON storage for live environment.');
+  console.log(
+    "No PostgreSQL configuration found. Defaulting to local JSON storage for live environment.",
+  );
 }
 
-// Initial Mock/Seed Tickets to keep the app populated with interesting data immediately
+// Empty initial state — no demo data
 const INITIAL_SEED: DBState = {
-  tickets: [
-    {
-      id: "tk-101",
-      title: "VPN Authentication Fails with OAuth2 Error",
-      description: "Getting connection rejected errors immediately after completing the duo push notification during the workplace VPN initialization. Diagnostics log says: ERR_OAUTH_TOKEN_EXPIRED.",
-      category: "network",
-      priority: "high",
-      status: "in_progress",
-      clientId: "client-1",
-      clientName: "Jane Doe",
-      clientEmail: "jane.doe@workplace.com",
-      assignedTo: "agent-1",
-      assignedName: "Alex Vance (IT Support)",
-      createdAt: new Date(Date.now() - 3600000 * 4).toISOString(), // 4h ago
-      updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(), // 2h ago
-      attachments: [],
-      messages: [
-        {
-          id: "m-1",
-          ticketId: "tk-101",
-          senderId: "client-1",
-          senderName: "Jane Doe",
-          senderRole: "client",
-          message: "Could we expedite this? I am unable to access the test servers for the release candidate.",
-          createdAt: new Date(Date.now() - 3600000 * 3.5).toISOString()
-        },
-        {
-          id: "m-2",
-          ticketId: "tk-101",
-          senderId: "agent-1",
-          senderName: "Alex Vance (IT Support)",
-          senderRole: "agent",
-          message: "Looking into the logs. It seems the VPN gateway LDAP sync failed this morning. Resetting your session token, please try re-authenticating in 5 minutes.",
-          createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
-        }
-      ]
-    },
-    {
-      id: "tk-102",
-      title: "Broken MacBook M3 Keyboard (Liquid Spill)",
-      description: "My tea spilled onto the enter key. Now the keys 'Q', 'W', and 'Enter' are registers sporadically or trigger repeats. I need a replacement workstation or keyboard repair.",
-      category: "hardware",
-      priority: "medium",
-      status: "open",
-      clientId: "client-2",
-      clientName: "John Smith",
-      clientEmail: "john.smith@co.com",
-      createdAt: new Date(Date.now() - 3600000 * 12).toISOString(), // 12h ago
-      updatedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
-      attachments: [],
-      messages: []
-    },
-    {
-      id: "tk-103",
-      title: "Access Request for Production Analytics DB",
-      description: "Need read-only access to PostgreSQL production replicas for generating weekly performance KPI metrics. Manager approved. Role: analytics_readonly.",
-      category: "access",
-      priority: "low",
-      status: "resolved",
-      clientId: "client-1",
-      clientName: "Jane Doe",
-      clientEmail: "jane.doe@workplace.com",
-      assignedTo: "agent-1",
-      assignedName: "Alex Vance (IT Support)",
-      createdAt: new Date(Date.now() - 3600000 * 48).toISOString(), // 2 days ago
-      updatedAt: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 day ago
-      attachments: [],
-      messages: [
-        {
-          id: "m-10",
-          ticketId: "tk-103",
-          senderId: "agent-1",
-          senderName: "Alex Vance (IT Support)",
-          senderRole: "agent",
-          message: "Database credentials generated and securely saved to your credentials vault. Verified connectivity.",
-          createdAt: new Date(Date.now() - 3600000 * 24).toISOString()
-        }
-      ]
-    }
-  ],
-  notifications: [
-    {
-      id: "notif-1",
-      ticketId: "tk-101",
-      recipientEmail: "jane.doe@workplace.com",
-      recipientName: "Jane Doe",
-      subject: "IT Support Update: VPN Authentication Fails with OAuth2 Error",
-      body: "Hi Jane Doe, your ticket status has changed to In Progress under the assignment of Alex Vance (IT Support). Details: Resetting your session token...",
-      sentAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-      status: "simulated"
-    }
-  ]
+  tickets: [],
+  notifications: [],
 };
 
 // Memory store fallback
@@ -134,9 +63,9 @@ let memoryDB: DBState = { ...INITIAL_SEED };
 // Save helper for JSON store
 function saveJSONStore() {
   try {
-    fs.writeFileSync(JSON_DB_PATH, JSON.stringify(memoryDB, null, 2), 'utf-8');
+    fs.writeFileSync(JSON_DB_PATH, JSON.stringify(memoryDB, null, 2), "utf-8");
   } catch (err) {
-    console.error('Error writing to local JSON database file:', err);
+    console.error("Error writing to local JSON database file:", err);
   }
 }
 
@@ -144,13 +73,16 @@ function saveJSONStore() {
 function loadJSONStore() {
   try {
     if (fs.existsSync(JSON_DB_PATH)) {
-      const content = fs.readFileSync(JSON_DB_PATH, 'utf-8');
+      const content = fs.readFileSync(JSON_DB_PATH, "utf-8");
       memoryDB = JSON.parse(content);
     } else {
       saveJSONStore();
     }
   } catch (err) {
-    console.error('Error loading local JSON database file, re-initializing...', err);
+    console.error(
+      "Error loading local JSON database file, re-initializing...",
+      err,
+    );
     saveJSONStore();
   }
 }
@@ -161,13 +93,15 @@ loadJSONStore();
 // Setup DB Tables if we use PostgreSQL
 export async function initializeDatabase() {
   if (!usePostgres || !pool) {
-    console.log('Running adapter in JSON persistence mode.');
+    console.log("Running adapter in JSON persistence mode.");
     return true;
   }
 
   try {
     const client = await pool.connect();
-    console.log('Connected to PostgreSQL successfully. Running schema initializations...');
+    console.log(
+      "Connected to PostgreSQL successfully. Running schema initializations...",
+    );
 
     // Create tickets table
     await client.query(`
@@ -211,37 +145,67 @@ export async function initializeDatabase() {
     `);
 
     // Check if table is empty, if so, seed sample data
-    const resCount = await client.query('SELECT COUNT(*) FROM tickets');
+    const resCount = await client.query("SELECT COUNT(*) FROM tickets");
     if (parseInt(resCount.rows[0].count) === 0) {
-      console.log('PostgreSQL database empty. Seeding initial test tickets...');
+      console.log("PostgreSQL database empty. Seeding initial test tickets...");
       for (const t of INITIAL_SEED.tickets) {
-        await client.query(`
+        await client.query(
+          `
           INSERT INTO tickets (
-            id, title, description, category, priority, status, client_id, client_name, client_email, 
+            id, title, description, category, priority, status, client_id, client_name, client_email,
             assigned_to, assigned_name, created_at, updated_at, attachments, messages, location
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-        `, [
-          t.id, t.title, t.description, t.category, t.priority, t.status, t.clientId, t.clientName, t.clientEmail,
-          t.assignedTo, t.assignedName, t.createdAt, t.updatedAt, JSON.stringify(t.attachments), JSON.stringify(t.messages), t.location || null
-        ]);
+        `,
+          [
+            t.id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.clientId,
+            t.clientName,
+            t.clientEmail,
+            t.assignedTo,
+            t.assignedName,
+            t.createdAt,
+            t.updatedAt,
+            JSON.stringify(t.attachments),
+            JSON.stringify(t.messages),
+            t.location || null,
+          ],
+        );
       }
 
       for (const n of INITIAL_SEED.notifications) {
-        await client.query(`
+        await client.query(
+          `
           INSERT INTO notification_logs (
             id, ticket_id, recipient_email, recipient_name, subject, body, sent_at, status
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [
-          n.id, n.ticketId, n.recipientEmail, n.recipientName, n.subject, n.body, n.sentAt, n.status
-        ]);
+        `,
+          [
+            n.id,
+            n.ticketId,
+            n.recipientEmail,
+            n.recipientName,
+            n.subject,
+            n.body,
+            n.sentAt,
+            n.status,
+          ],
+        );
       }
     }
 
     client.release();
-    console.log('PostgreSQL schema verification and seeding complete.');
+    console.log("PostgreSQL schema verification and seeding complete.");
     return true;
   } catch (err) {
-    console.error('CRITICAL: PostgreSQL schema creation failed! Dropping PostgreSQL capability and falling back to JSON storage.', err);
+    console.error(
+      "CRITICAL: PostgreSQL schema creation failed! Dropping PostgreSQL capability and falling back to JSON storage.",
+      err,
+    );
     usePostgres = false;
     return false;
   }
@@ -251,8 +215,10 @@ export async function initializeDatabase() {
 export async function getTickets(): Promise<Ticket[]> {
   if (usePostgres && pool) {
     try {
-      const res = await pool.query('SELECT * FROM tickets ORDER BY created_at DESC');
-      return res.rows.map(row => ({
+      const res = await pool.query(
+        "SELECT * FROM tickets ORDER BY created_at DESC",
+      );
+      return res.rows.map((row) => ({
         id: row.id,
         title: row.title,
         description: row.description,
@@ -266,12 +232,18 @@ export async function getTickets(): Promise<Ticket[]> {
         assignedName: row.assigned_name || undefined,
         createdAt: new Date(row.created_at).toISOString(),
         updatedAt: new Date(row.updated_at).toISOString(),
-        attachments: typeof row.attachments === 'string' ? JSON.parse(row.attachments) : row.attachments || [],
-        messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages || [],
+        attachments:
+          typeof row.attachments === "string"
+            ? JSON.parse(row.attachments)
+            : row.attachments || [],
+        messages:
+          typeof row.messages === "string"
+            ? JSON.parse(row.messages)
+            : row.messages || [],
         location: row.location || undefined,
       }));
     } catch (err) {
-      console.error('PostgreSQL query error, using local memory store:', err);
+      console.error("PostgreSQL query error, using local memory store:", err);
     }
   }
   return memoryDB.tickets;
@@ -281,7 +253,7 @@ export async function getTickets(): Promise<Ticket[]> {
 export async function getTicketById(id: string): Promise<Ticket | null> {
   if (usePostgres && pool) {
     try {
-      const res = await pool.query('SELECT * FROM tickets WHERE id = $1', [id]);
+      const res = await pool.query("SELECT * FROM tickets WHERE id = $1", [id]);
       if (res.rows.length > 0) {
         const row = res.rows[0];
         return {
@@ -298,36 +270,58 @@ export async function getTicketById(id: string): Promise<Ticket | null> {
           assignedName: row.assigned_name || undefined,
           createdAt: new Date(row.created_at).toISOString(),
           updatedAt: new Date(row.updated_at).toISOString(),
-          attachments: typeof row.attachments === 'string' ? JSON.parse(row.attachments) : row.attachments || [],
-          messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages || [],
+          attachments:
+            typeof row.attachments === "string"
+              ? JSON.parse(row.attachments)
+              : row.attachments || [],
+          messages:
+            typeof row.messages === "string"
+              ? JSON.parse(row.messages)
+              : row.messages || [],
           location: row.location || undefined,
         };
       }
       return null;
     } catch (err) {
-      console.error('PostgreSQL search error:', err);
+      console.error("PostgreSQL search error:", err);
     }
   }
-  return memoryDB.tickets.find(t => t.id === id) || null;
+  return memoryDB.tickets.find((t) => t.id === id) || null;
 }
 
 // Create a new support ticket
 export async function createTicket(ticket: Ticket): Promise<Ticket> {
   if (usePostgres && pool) {
     try {
-      await pool.query(`
+      await pool.query(
+        `
         INSERT INTO tickets (
-          id, title, description, category, priority, status, client_id, client_name, client_email, 
+          id, title, description, category, priority, status, client_id, client_name, client_email,
           assigned_to, assigned_name, created_at, updated_at, attachments, messages, location
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-      `, [
-        ticket.id, ticket.title, ticket.description, ticket.category, ticket.priority, ticket.status,
-        ticket.clientId, ticket.clientName, ticket.clientEmail, ticket.assignedTo || null, ticket.assignedName || null,
-        ticket.createdAt, ticket.updatedAt, JSON.stringify(ticket.attachments), JSON.stringify(ticket.messages), ticket.location || null
-      ]);
+      `,
+        [
+          ticket.id,
+          ticket.title,
+          ticket.description,
+          ticket.category,
+          ticket.priority,
+          ticket.status,
+          ticket.clientId,
+          ticket.clientName,
+          ticket.clientEmail,
+          ticket.assignedTo || null,
+          ticket.assignedName || null,
+          ticket.createdAt,
+          ticket.updatedAt,
+          JSON.stringify(ticket.attachments),
+          JSON.stringify(ticket.messages),
+          ticket.location || null,
+        ],
+      );
       return ticket;
     } catch (err) {
-      console.error('PostgreSQL insert error, trying memory store:', err);
+      console.error("PostgreSQL insert error, trying memory store:", err);
     }
   }
 
@@ -337,37 +331,52 @@ export async function createTicket(ticket: Ticket): Promise<Ticket> {
 }
 
 // Update partial ticket fields (such as status, priority, or assignee)
-export async function updateTicket(id: string, updates: Partial<Ticket>): Promise<Ticket | null> {
+export async function updateTicket(
+  id: string,
+  updates: Partial<Ticket>,
+): Promise<Ticket | null> {
   const timeNow = new Date().toISOString();
   if (usePostgres && pool) {
     try {
       const original = await getTicketById(id);
       if (original) {
         const merged = { ...original, ...updates, updatedAt: timeNow };
-        await pool.query(`
-          UPDATE tickets SET 
-            title = $1, description = $2, category = $3, priority = $4, status = $5, 
+        await pool.query(
+          `
+          UPDATE tickets SET
+            title = $1, description = $2, category = $3, priority = $4, status = $5,
             assigned_to = $6, assigned_name = $7, updated_at = $8, attachments = $9, messages = $10,
             location = $11
           WHERE id = $12
-        `, [
-          merged.title, merged.description, merged.category, merged.priority, merged.status,
-          merged.assignedTo || null, merged.assignedName || null, merged.updatedAt,
-          JSON.stringify(merged.attachments), JSON.stringify(merged.messages), merged.location || null, id
-        ]);
+        `,
+          [
+            merged.title,
+            merged.description,
+            merged.category,
+            merged.priority,
+            merged.status,
+            merged.assignedTo || null,
+            merged.assignedName || null,
+            merged.updatedAt,
+            JSON.stringify(merged.attachments),
+            JSON.stringify(merged.messages),
+            merged.location || null,
+            id,
+          ],
+        );
         return merged;
       }
     } catch (err) {
-      console.error('PostgreSQL update error:', err);
+      console.error("PostgreSQL update error:", err);
     }
   }
 
-  const index = memoryDB.tickets.findIndex(t => t.id === id);
+  const index = memoryDB.tickets.findIndex((t) => t.id === id);
   if (index !== -1) {
     const updatedTicket = {
       ...memoryDB.tickets[index],
       ...updates,
-      updatedAt: timeNow
+      updatedAt: timeNow,
     };
     memoryDB.tickets[index] = updatedTicket;
     saveJSONStore();
@@ -377,7 +386,10 @@ export async function updateTicket(id: string, updates: Partial<Ticket>): Promis
 }
 
 // Post a new discussion reply in chat
-export async function addTicketMessage(ticketId: string, message: TicketMessage): Promise<Ticket | null> {
+export async function addTicketMessage(
+  ticketId: string,
+  message: TicketMessage,
+): Promise<Ticket | null> {
   const original = await getTicketById(ticketId);
   if (!original) return null;
 
@@ -386,18 +398,30 @@ export async function addTicketMessage(ticketId: string, message: TicketMessage)
 }
 
 // Add logs of mock or actual notifications dispatched
-export async function addNotification(log: NotificationLog): Promise<NotificationLog> {
+export async function addNotification(
+  log: NotificationLog,
+): Promise<NotificationLog> {
   if (usePostgres && pool) {
     try {
-      await pool.query(`
+      await pool.query(
+        `
         INSERT INTO notification_logs (id, ticket_id, recipient_email, recipient_name, subject, body, sent_at, status)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `, [
-        log.id, log.ticketId, log.recipientEmail, log.recipientName, log.subject, log.body, log.sentAt, log.status
-      ]);
+      `,
+        [
+          log.id,
+          log.ticketId,
+          log.recipientEmail,
+          log.recipientName,
+          log.subject,
+          log.body,
+          log.sentAt,
+          log.status,
+        ],
+      );
       return log;
     } catch (err) {
-      console.error('PostgreSQL insert log error:', err);
+      console.error("PostgreSQL insert log error:", err);
     }
   }
 
@@ -410,8 +434,10 @@ export async function addNotification(log: NotificationLog): Promise<Notificatio
 export async function getNotifications(): Promise<NotificationLog[]> {
   if (usePostgres && pool) {
     try {
-      const res = await pool.query('SELECT * FROM notification_logs ORDER BY sent_at DESC LIMIT 100');
-      return res.rows.map(row => ({
+      const res = await pool.query(
+        "SELECT * FROM notification_logs ORDER BY sent_at DESC LIMIT 100",
+      );
+      return res.rows.map((row) => ({
         id: row.id,
         ticketId: row.ticket_id,
         recipientEmail: row.recipient_email,
@@ -419,10 +445,10 @@ export async function getNotifications(): Promise<NotificationLog[]> {
         subject: row.subject,
         body: row.body,
         sentAt: new Date(row.sent_at).toISOString(),
-        status: row.status
+        status: row.status,
       }));
     } catch (err) {
-      console.error('PostgreSQL queries failed for notification logs:', err);
+      console.error("PostgreSQL queries failed for notification logs:", err);
     }
   }
   return memoryDB.notifications;
@@ -437,7 +463,7 @@ export function isPostgresConnected(): boolean {
 
 // Calculate resolution time in hours for a ticket
 function getResolutionTimeHours(ticket: Ticket): number {
-  if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
+  if (ticket.status !== "resolved" && ticket.status !== "closed") {
     return 0; // Unresolved tickets don't count
   }
   const createdTime = new Date(ticket.createdAt).getTime();
@@ -448,23 +474,30 @@ function getResolutionTimeHours(ticket: Ticket): number {
 // Get high-level ticket metrics
 export async function getTicketMetrics(): Promise<TicketMetrics> {
   const tickets = await getTickets();
-  
-  const openCount = tickets.filter(t => t.status === 'open').length;
-  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length;
-  const resolvedCount = tickets.filter(t => t.status === 'resolved').length;
-  const closedCount = tickets.filter(t => t.status === 'closed').length;
-  
-  const criticalCount = tickets.filter(t => 
-    (t.priority === 'urgent' || t.priority === 'high') && 
-    (t.status === 'open' || t.status === 'in_progress')
+
+  const openCount = tickets.filter((t) => t.status === "open").length;
+  const inProgressCount = tickets.filter(
+    (t) => t.status === "in_progress",
   ).length;
-  
+  const resolvedCount = tickets.filter((t) => t.status === "resolved").length;
+  const closedCount = tickets.filter((t) => t.status === "closed").length;
+
+  const criticalCount = tickets.filter(
+    (t) =>
+      (t.priority === "urgent" || t.priority === "high") &&
+      (t.status === "open" || t.status === "in_progress"),
+  ).length;
+
   // Calculate average resolution time (only for resolved/closed tickets)
-  const resolvedTickets = tickets.filter(t => t.status === 'resolved' || t.status === 'closed');
-  const avgResolutionTime = resolvedTickets.length > 0
-    ? resolvedTickets.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) / resolvedTickets.length
-    : 0;
-  
+  const resolvedTickets = tickets.filter(
+    (t) => t.status === "resolved" || t.status === "closed",
+  );
+  const avgResolutionTime =
+    resolvedTickets.length > 0
+      ? resolvedTickets.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) /
+        resolvedTickets.length
+      : 0;
+
   return {
     totalTickets: tickets.length,
     openTickets: openCount,
@@ -481,33 +514,37 @@ export async function getTicketMetrics(): Promise<TicketMetrics> {
 export async function getTicketTrends(): Promise<TicketTrendData[]> {
   const tickets = await getTickets();
   const trends: Record<string, { created: number; resolved: number }> = {};
-  
+
   // Initialize last 30 days
   for (let i = 0; i < 30; i++) {
     const date = new Date();
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = date.toISOString().split("T")[0];
     trends[dateStr] = { created: 0, resolved: 0 };
   }
-  
+
   // Count tickets created/resolved by date
-  tickets.forEach(ticket => {
-    const createdDate = new Date(ticket.createdAt).toISOString().split('T')[0];
+  tickets.forEach((ticket) => {
+    const createdDate = new Date(ticket.createdAt).toISOString().split("T")[0];
     if (trends[createdDate]) trends[createdDate].created++;
-    
-    if (ticket.status === 'resolved' || ticket.status === 'closed') {
-      const updatedDate = new Date(ticket.updatedAt).toISOString().split('T')[0];
+
+    if (ticket.status === "resolved" || ticket.status === "closed") {
+      const updatedDate = new Date(ticket.updatedAt)
+        .toISOString()
+        .split("T")[0];
       if (trends[updatedDate]) trends[updatedDate].resolved++;
     }
   });
-  
+
   // Convert to array and sort by date
   return Object.entries(trends)
     .map(([date, data]) => ({
       date,
       created: data.created,
       resolved: data.resolved,
-      total: tickets.filter(t => new Date(t.createdAt).toISOString().split('T')[0] <= date).length
+      total: tickets.filter(
+        (t) => new Date(t.createdAt).toISOString().split("T")[0] <= date,
+      ).length,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -515,45 +552,57 @@ export async function getTicketTrends(): Promise<TicketTrendData[]> {
 // Get agent performance metrics
 export async function getAgentPerformance(): Promise<AgentPerformance[]> {
   const tickets = await getTickets();
-  const agentMap: Record<string, { name: string; assigned: Ticket[]; resolved: Ticket[] }> = {};
-  
+  const agentMap: Record<
+    string,
+    { name: string; assigned: Ticket[]; resolved: Ticket[] }
+  > = {};
+
   // Group tickets by agent
-  tickets.forEach(ticket => {
+  tickets.forEach((ticket) => {
     if (ticket.assignedTo) {
       if (!agentMap[ticket.assignedTo]) {
         agentMap[ticket.assignedTo] = {
-          name: ticket.assignedName || 'Unknown Agent',
+          name: ticket.assignedName || "Unknown Agent",
           assigned: [],
-          resolved: []
+          resolved: [],
         };
       }
       agentMap[ticket.assignedTo].assigned.push(ticket);
-      
-      if (ticket.status === 'resolved' || ticket.status === 'closed') {
+
+      if (ticket.status === "resolved" || ticket.status === "closed") {
         agentMap[ticket.assignedTo].resolved.push(ticket);
       }
     }
   });
-  
+
   // Calculate performance metrics per agent
-  return Object.entries(agentMap).map(([agentId, data]) => {
-    const avgResTime = data.resolved.length > 0
-      ? data.resolved.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) / data.resolved.length
-      : 0;
-    
-    const responseRate = data.assigned.length > 0
-      ? (data.assigned.filter(t => t.messages.length > 0).length / data.assigned.length) * 100
-      : 0;
-    
-    return {
-      agentId,
-      agentName: data.name,
-      assignedTickets: data.assigned.length,
-      resolvedTickets: data.resolved.length,
-      avgResolutionTimeHours: Math.round(avgResTime * 10) / 10,
-      responseRatePercent: Math.round(responseRate)
-    };
-  }).sort((a, b) => b.resolvedTickets - a.resolvedTickets);
+  return Object.entries(agentMap)
+    .map(([agentId, data]) => {
+      const avgResTime =
+        data.resolved.length > 0
+          ? data.resolved.reduce(
+              (sum, t) => sum + getResolutionTimeHours(t),
+              0,
+            ) / data.resolved.length
+          : 0;
+
+      const responseRate =
+        data.assigned.length > 0
+          ? (data.assigned.filter((t) => t.messages.length > 0).length /
+              data.assigned.length) *
+            100
+          : 0;
+
+      return {
+        agentId,
+        agentName: data.name,
+        assignedTickets: data.assigned.length,
+        resolvedTickets: data.resolved.length,
+        avgResolutionTimeHours: Math.round(avgResTime * 10) / 10,
+        responseRatePercent: Math.round(responseRate),
+      };
+    })
+    .sort((a, b) => b.resolvedTickets - a.resolvedTickets);
 }
 
 // Get category breakdown
@@ -564,26 +613,32 @@ export async function getCategoryBreakdown(): Promise<CategoryBreakdown[]> {
     software: [],
     network: [],
     access: [],
-    other: []
+    other: [],
   };
-  
-  tickets.forEach(ticket => {
+
+  tickets.forEach((ticket) => {
     categories[ticket.category].push(ticket);
   });
-  
+
   const total = tickets.length;
-  
+
   return Object.entries(categories).map(([category, catTickets]) => {
-    const resolvedTickets = catTickets.filter(t => t.status === 'resolved' || t.status === 'closed');
-    const avgResTime = resolvedTickets.length > 0
-      ? resolvedTickets.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) / resolvedTickets.length
-      : 0;
-    
+    const resolvedTickets = catTickets.filter(
+      (t) => t.status === "resolved" || t.status === "closed",
+    );
+    const avgResTime =
+      resolvedTickets.length > 0
+        ? resolvedTickets.reduce(
+            (sum, t) => sum + getResolutionTimeHours(t),
+            0,
+          ) / resolvedTickets.length
+        : 0;
+
     return {
       category: category as any,
       count: catTickets.length,
       percentage: total > 0 ? Math.round((catTickets.length / total) * 100) : 0,
-      avgResolutionTimeHours: Math.round(avgResTime * 10) / 10
+      avgResolutionTimeHours: Math.round(avgResTime * 10) / 10,
     };
   });
 }
@@ -595,19 +650,19 @@ export async function getPriorityBreakdown(): Promise<PriorityBreakdown[]> {
     low: [],
     medium: [],
     high: [],
-    urgent: []
+    urgent: [],
   };
-  
-  tickets.forEach(ticket => {
+
+  tickets.forEach((ticket) => {
     priorities[ticket.priority].push(ticket);
   });
-  
+
   const total = tickets.length;
-  
+
   return Object.entries(priorities).map(([priority, priTickets]) => ({
     priority: priority as any,
     count: priTickets.length,
-    percentage: total > 0 ? Math.round((priTickets.length / total) * 100) : 0
+    percentage: total > 0 ? Math.round((priTickets.length / total) * 100) : 0,
   }));
 }
 
@@ -619,6 +674,6 @@ export async function getDashboardData(): Promise<DashboardData> {
     agentPerformance: await getAgentPerformance(),
     categoryBreakdown: await getCategoryBreakdown(),
     priorityBreakdown: await getPriorityBreakdown(),
-    generatedAt: new Date().toISOString()
+    generatedAt: new Date().toISOString(),
   };
 }

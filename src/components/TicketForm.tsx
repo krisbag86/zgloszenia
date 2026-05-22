@@ -1,7 +1,20 @@
-import React, { useState, useRef } from 'react';
-import { TicketCategory, TicketPriority, Attachment } from '../types';
-import { STORE_LOCATIONS } from '../data/stores';
-import { Upload, X, Paperclip, FileText, CheckCircle2, AlertTriangle, MapPin, Mail, Home } from 'lucide-react';
+import React, { useState, useRef } from "react";
+import { TicketCategory, TicketPriority, Attachment } from "../types";
+import { STORE_LOCATIONS } from "../data/stores";
+import {
+  Upload,
+  X,
+  Paperclip,
+  FileText,
+  FileImage,
+  FileCode,
+  File,
+  CheckCircle2,
+  AlertTriangle,
+  MapPin,
+  Mail,
+  Home,
+} from "lucide-react";
 
 interface TicketFormProps {
   clientId: string;
@@ -17,12 +30,17 @@ interface TicketFormProps {
   }) => Promise<void>;
 }
 
-export default function TicketForm({ clientId, clientName, clientEmail, onTicketSubmitted }: TicketFormProps) {
-  const [title, setTitle] = useState('');
-  const [location, setLocation] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<TicketCategory>('software');
-  const [priority, setPriority] = useState<TicketPriority>('medium');
+export default function TicketForm({
+  clientId,
+  clientName,
+  clientEmail,
+  onTicketSubmitted,
+}: TicketFormProps) {
+  const [title, setTitle] = useState("");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<TicketCategory>("software");
+  const [priority, setPriority] = useState<TicketPriority>("medium");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -33,7 +51,7 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
   // File loading function to Base64
   const processFiles = (files: FileList) => {
     const loadedFiles: Attachment[] = [];
-    
+
     Array.from(files).forEach((file) => {
       // Keep files reasonably sized
       if (file.size > 2 * 1024 * 1024) {
@@ -43,12 +61,12 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
 
       const reader = new FileReader();
       reader.onload = () => {
-        if (typeof reader.result === 'string') {
+        if (typeof reader.result === "string") {
           setAttachments((prev) => [
             ...prev,
             {
               name: file.name,
-              type: file.type || 'application/octet-stream',
+              type: file.type || "application/octet-stream",
               size: file.size,
               data: reader.result as string,
             },
@@ -62,9 +80,9 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
+    if (e.type === "dragenter" || e.type === "dragover") {
       setDragActive(true);
-    } else if (e.type === 'dragleave') {
+    } else if (e.type === "dragleave") {
       setDragActive(false);
     }
   };
@@ -95,11 +113,13 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
-      setErrorStatus('Proszę podać zarówno tytuł podsumowania, jak i szczegółowy opis.');
+      setErrorStatus(
+        "Proszę podać zarówno tytuł podsumowania, jak i szczegółowy opis.",
+      );
       return;
     }
     if (!location) {
-      setErrorStatus('Proszę wybrać lokalizację / sklep ze zgłoszenia.');
+      setErrorStatus("Proszę wybrać lokalizację / sklep ze zgłoszenia.");
       return;
     }
 
@@ -118,19 +138,23 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
       });
 
       // Clear state on successful creation
-      setTitle('');
-      setLocation('');
-      setDescription('');
-      setCategory('software');
-      setPriority('medium');
+      setTitle("");
+      setLocation("");
+      setDescription("");
+      setCategory("software");
+      setPriority("medium");
       setAttachments([]);
-      setSuccessStatus('Twoje zgłoszenie wsparcia IT zostało pomyślnie zarejestrowane i jest śledzone!');
-      
+      setSuccessStatus(
+        "Twoje zgłoszenie wsparcia IT zostało pomyślnie zarejestrowane i jest śledzone!",
+      );
+
       setTimeout(() => {
         setSuccessStatus(null);
       }, 5000);
     } catch (err: any) {
-      setErrorStatus(err.message || 'Wystąpił błąd podczas rejestrowania zgłoszenia.');
+      setErrorStatus(
+        err.message || "Wystąpił błąd podczas rejestrowania zgłoszenia.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -139,9 +163,12 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 max-w-2xl mx-auto shadow-2xs hover:shadow-xs transition-shadow duration-300">
       <div className="mb-6 pb-4 border-b border-slate-100">
-        <h2 className="text-xl font-extrabold font-sans text-slate-900 tracking-tight">Wyślij zgłoszenie wsparcia IT</h2>
+        <h2 className="text-xl font-extrabold font-sans text-slate-900 tracking-tight">
+          Wyślij zgłoszenie wsparcia IT
+        </h2>
         <p className="text-xs text-slate-500 mt-1.5">
-          Zarejestruj swoje problemy techniczne. Inżynierowie wsparcia śledzą ten kanał w czasie rzeczywistym.
+          Zarejestruj swoje problemy techniczne. Inżynierowie wsparcia śledzą
+          ten kanał w czasie rzeczywistym.
         </p>
       </div>
 
@@ -161,7 +188,10 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label htmlFor="ticket-title" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <label
+            htmlFor="ticket-title"
+            className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"
+          >
             Tytuł zgłoszenia / Podsumowanie *
           </label>
           <input
@@ -176,8 +206,12 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
         </div>
 
         <div>
-          <label htmlFor="ticket-location" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-indigo-500" /> Lokalizacja / Sklep zgłaszający *
+          <label
+            htmlFor="ticket-location"
+            className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"
+          >
+            <MapPin className="w-3.5 h-3.5 text-indigo-500" /> Lokalizacja /
+            Sklep zgłaszający *
           </label>
           <select
             id="ticket-location"
@@ -195,32 +229,39 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
           </select>
 
           {/* Dynamic store detail card */}
-          {location && (() => {
-            const selectedStore = STORE_LOCATIONS.find(s => s.code === location);
-            if (!selectedStore) return null;
-            return (
-              <div className="mt-2.5 bg-indigo-50/30 border border-indigo-100/50 rounded-xl p-3.5 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-850 text-[11px]">
-                    <Home className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                    <span>{selectedStore.name}</span>
+          {location &&
+            (() => {
+              const selectedStore = STORE_LOCATIONS.find(
+                (s) => s.code === location,
+              );
+              if (!selectedStore) return null;
+              return (
+                <div className="mt-2.5 bg-indigo-50/30 border border-indigo-100/50 rounded-xl p-3.5 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-850 text-[11px]">
+                      <Home className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>{selectedStore.name}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 leading-normal ml-5">
+                      {selectedStore.address} (Miejscowość: {selectedStore.city}
+                      )
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-500 leading-normal ml-5">
-                    {selectedStore.address} (Miejscowość: {selectedStore.city})
+                  <div className="flex items-center gap-1.5 bg-white border border-slate-150 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-500 font-mono select-all self-start sm:self-auto shadow-3xs hover:bg-slate-50 transition-colors">
+                    <Mail className="w-3 h-3 text-indigo-500 shrink-0" />
+                    <span>{selectedStore.email}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 bg-white border border-slate-150 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-500 font-mono select-all self-start sm:self-auto shadow-3xs hover:bg-slate-50 transition-colors">
-                  <Mail className="w-3 h-3 text-indigo-500 shrink-0" />
-                  <span>{selectedStore.email}</span>
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="ticket-category" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <label
+              htmlFor="ticket-category"
+              className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"
+            >
               Kategoria
             </label>
             <select
@@ -229,7 +270,9 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
               onChange={(e) => setCategory(e.target.value as TicketCategory)}
               className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-indigo-505 cursor-pointer text-slate-705 font-sans"
             >
-              <option value="software">Oprogramowanie / Dostęp do aplikacji</option>
+              <option value="software">
+                Oprogramowanie / Dostęp do aplikacji
+              </option>
               <option value="hardware">Sprzęt / Wyposażenie</option>
               <option value="network">Sieć / VPN / Internet</option>
               <option value="access">Uprawnienia / Konta / Hasła</option>
@@ -238,7 +281,10 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
           </div>
 
           <div>
-            <label htmlFor="ticket-priority" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <label
+              htmlFor="ticket-priority"
+              className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"
+            >
               Wpływ / Priorytet
             </label>
             <select
@@ -256,7 +302,10 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
         </div>
 
         <div>
-          <label htmlFor="ticket-desc" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <label
+            htmlFor="ticket-desc"
+            className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"
+          >
             Szczegółowy opis *
           </label>
           <textarea
@@ -282,9 +331,9 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
             onDrop={handleDrop}
             onClick={triggerFileSelect}
             className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-7 transition-all cursor-pointer ${
-              dragActive 
-                ? 'border-indigo-500 bg-indigo-50/20' 
-                : 'border-slate-200 hover:border-slate-350 bg-slate-50/25 hover:bg-slate-50/60'
+              dragActive
+                ? "border-indigo-500 bg-indigo-50/20"
+                : "border-slate-200 hover:border-slate-350 bg-slate-50/25 hover:bg-slate-50/60"
             }`}
           >
             <input
@@ -296,7 +345,10 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
             />
             <Upload className="w-8 h-8 text-slate-400 mb-2.5" />
             <p className="text-xs font-bold text-slate-707">
-              Przeciągnij i upuść pliki tutaj, lub <span className="text-indigo-600 underline">przeglądaj pliki</span>
+              Przeciągnij i upuść pliki tutaj, lub{" "}
+              <span className="text-indigo-600 underline">
+                przeglądaj pliki
+              </span>
             </p>
             <p className="text-[10px] text-slate-400 mt-1.5 font-sans">
               Rozmiar pliku do 2MB każdy. Maksymalnie: 5 plików.
@@ -316,12 +368,23 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
                     className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-707"
                   >
                     <div className="flex items-center gap-2 truncate max-w-[80%]">
-                      {file.type.startsWith('image/') ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      {file.type.startsWith("image/") ? (
+                        <FileImage className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      ) : file.type === "application/pdf" ||
+                        file.name.endsWith(".pdf") ? (
+                        <FileText className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      ) : file.type.startsWith("text/") ||
+                        /\.(log|txt|csv)$/i.test(file.name) ? (
+                        <FileCode className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                       ) : (
-                        <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <File className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       )}
-                      <span className="truncate font-medium text-[11px]" title={file.name}>{file.name}</span>
+                      <span
+                        className="truncate font-medium text-[11px]"
+                        title={file.name}
+                      >
+                        {file.name}
+                      </span>
                       <span className="text-[9px] text-slate-400 font-mono">
                         ({(file.size / 1024).toFixed(0)} KB)
                       </span>
@@ -347,10 +410,16 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
         {/* Client identity tags informative line */}
         <div className="border-t border-slate-100 pt-4 flex flex-wrap gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
           <div>
-            <span>Zgłaszający:</span> <span className="text-slate-550">{clientName} ({clientEmail})</span>
+            <span>Zgłaszający:</span>{" "}
+            <span className="text-slate-550">
+              {clientName} ({clientEmail})
+            </span>
           </div>
           <div>
-            <span>ID Zgłaszającego:</span> <span className="font-mono text-[9px] bg-slate-100 border border-slate-150 px-1.5 py-0.5 rounded text-slate-600">{clientId}</span>
+            <span>ID Zgłaszającego:</span>{" "}
+            <span className="font-mono text-[9px] bg-slate-100 border border-slate-150 px-1.5 py-0.5 rounded text-slate-600">
+              {clientId}
+            </span>
           </div>
         </div>
 
@@ -364,7 +433,11 @@ export default function TicketForm({ clientId, clientName, clientEmail, onTicket
           ) : (
             <Paperclip className="w-4 h-4" />
           )}
-          <span>{submitting ? 'Rejestrowanie zgłoszenia...' : 'Wyślij zgłoszenie wsparcia'}</span>
+          <span>
+            {submitting
+              ? "Rejestrowanie zgłoszenia..."
+              : "Wyślij zgłoszenie wsparcia"}
+          </span>
         </button>
       </form>
     </div>

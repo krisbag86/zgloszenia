@@ -162,12 +162,10 @@ async function startServer() {
       }
       res.json(ticket);
     } catch (err: any) {
-      res
-        .status(500)
-        .json({
-          error: "Failed to retrieve ticket info.",
-          details: err.message,
-        });
+      res.status(500).json({
+        error: "Failed to retrieve ticket info.",
+        details: err.message,
+      });
     }
   });
 
@@ -195,11 +193,9 @@ async function startServer() {
         !clientEmail ||
         !clientId
       ) {
-        return res
-          .status(400)
-          .json({
-            error: "Missing mandatory fields required to file a ticket.",
-          });
+        return res.status(400).json({
+          error: "Missing mandatory fields required to file a ticket.",
+        });
       }
 
       const ticketId = generateId("tk");
@@ -262,16 +258,31 @@ async function startServer() {
         currentUserId,
       } = req.body;
 
-      // RBAC: only agents and admins may modify tickets
-      if (
+      // RBAC: clients may only resolve/close their own tickets
+      if (currentUserRole === "client") {
+        if (original.clientId !== currentUserId) {
+          return res.status(403).json({
+            error: "Forbidden: clients can only modify their own tickets.",
+          });
+        }
+        if (status && status !== "resolved" && status !== "closed") {
+          return res.status(403).json({
+            error:
+              "Forbidden: clients may only resolve or close their own tickets.",
+          });
+        }
+        if (priority !== undefined || assignedTo !== undefined) {
+          return res.status(403).json({
+            error: "Forbidden: clients cannot change priority or assignment.",
+          });
+        }
+      } else if (
         !currentUserRole ||
         (currentUserRole !== "agent" && currentUserRole !== "admin")
       ) {
-        return res
-          .status(403)
-          .json({
-            error: "Forbidden: only agents and admins can update tickets.",
-          });
+        return res.status(403).json({
+          error: "Forbidden: only agents and admins can update tickets.",
+        });
       }
 
       // Agents may only assign tickets to themselves
@@ -280,11 +291,9 @@ async function startServer() {
         assignedTo !== undefined &&
         assignedTo !== currentUserId
       ) {
-        return res
-          .status(403)
-          .json({
-            error: "Forbidden: agents can only assign tickets to themselves.",
-          });
+        return res.status(403).json({
+          error: "Forbidden: agents can only assign tickets to themselves.",
+        });
       }
 
       const updates: Partial<Ticket> = {};
@@ -348,12 +357,10 @@ async function startServer() {
       // RBAC: clients may only message on their own tickets and cannot post internal notes
       if (senderRole === "client") {
         if (ticket.clientId !== senderId) {
-          return res
-            .status(403)
-            .json({
-              error:
-                "Forbidden: clients can only post messages on their own tickets.",
-            });
+          return res.status(403).json({
+            error:
+              "Forbidden: clients can only post messages on their own tickets.",
+          });
         }
         if (isInternal) {
           return res
@@ -406,12 +413,10 @@ async function startServer() {
       const logs = await getNotifications();
       res.json(logs);
     } catch (err: any) {
-      res
-        .status(500)
-        .json({
-          error: "Failed to access audit notification logs.",
-          details: err.message,
-        });
+      res.status(500).json({
+        error: "Failed to access audit notification logs.",
+        details: err.message,
+      });
     }
   });
 
@@ -421,12 +426,10 @@ async function startServer() {
       const dashboardData = await getDashboardData();
       res.json(dashboardData);
     } catch (err: any) {
-      res
-        .status(500)
-        .json({
-          error: "Failed to generate dashboard data.",
-          details: err.message,
-        });
+      res.status(500).json({
+        error: "Failed to generate dashboard data.",
+        details: err.message,
+      });
     }
   });
 
