@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # 1. Full-stack IT Support Web Application Node.js + Express + WS Server
+  web-app:
+    build: .
+    container_name: it_support_app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://support_user:SecureSupportPassword99@db:5432/support_tickets
+      - DB_SSL=false
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+  # 2. Relational Database Instance (PostgreSQL 15)
+  db:
+    image: postgres:15-alpine
+    container_name: it_support_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=support_user
+      - POSTGRES_PASSWORD=SecureSupportPassword99
+      - POSTGRES_DB=support_tickets
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support_user -d support_tickets"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # 3. Web-based Database Administration Utility
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: it_support_pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@bagietka.pl
+      - PGADMIN_DEFAULT_PASSWORD=AdminPassword_99
+    depends_on:
+      - db
+    restart: always
+
+volumes:
+  postgres_data:

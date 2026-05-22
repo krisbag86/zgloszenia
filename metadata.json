@@ -1,0 +1,6 @@
+{
+  "name": "IT Support Ticket Manager",
+  "description": "IT Support Ticket Management System featuring a ticketing portal, agent dashboard, role-based access control (RBAC), real-time ticket updates using WebSockets, file attachments, and email notification logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
