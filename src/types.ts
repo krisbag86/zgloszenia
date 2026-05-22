@@ -64,3 +64,53 @@ export interface DBState {
   tickets: Ticket[];
   notifications: NotificationLog[];
 }
+
+// Analytics & Reporting Types
+export interface TicketMetrics {
+  totalTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedTickets: number;
+  closedTickets: number;
+  avgResolutionTimeHours: number;
+  criticalTickets: number; // urgent + high priority
+  overallSatisfactionScore: number; // 0-100
+}
+
+export interface TicketTrendData {
+  date: string;
+  created: number;
+  resolved: number;
+  total: number;
+}
+
+export interface AgentPerformance {
+  agentId: string;
+  agentName: string;
+  assignedTickets: number;
+  resolvedTickets: number;
+  avgResolutionTimeHours: number;
+  responseRatePercent: number; // % with at least one response
+}
+
+export interface CategoryBreakdown {
+  category: TicketCategory;
+  count: number;
+  percentage: number;
+  avgResolutionTimeHours: number;
+}
+
+export interface PriorityBreakdown {
+  priority: TicketPriority;
+  count: number;
+  percentage: number;
+}
+
+export interface DashboardData {
+  metrics: TicketMetrics;
+  trends: TicketTrendData[];
+  agentPerformance: AgentPerformance[];
+  categoryBreakdown: CategoryBreakdown[];
+  priorityBreakdown: PriorityBreakdown[];
+  generatedAt: string;
+}

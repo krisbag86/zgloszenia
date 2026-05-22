@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Pool } from 'pg';
-import { Ticket, NotificationLog, DBState, TicketMessage, TicketStatus, TicketPriority } from './types';
+import { Ticket, NotificationLog, DBState, TicketMessage, TicketStatus, TicketPriority, DashboardData, TicketMetrics, TicketTrendData, AgentPerformance, CategoryBreakdown, PriorityBreakdown } from './types';
 
 const JSON_DB_PATH = path.join(process.cwd(), 'tickets_db.json');
 
@@ -431,4 +431,194 @@ export async function getNotifications(): Promise<NotificationLog[]> {
 // Status check function
 export function isPostgresConnected(): boolean {
   return usePostgres;
+}
+
+// ===== ANALYTICS & REPORTING FUNCTIONS =====
+
+// Calculate resolution time in hours for a ticket
+function getResolutionTimeHours(ticket: Ticket): number {
+  if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
+    return 0; // Unresolved tickets don't count
+  }
+  const createdTime = new Date(ticket.createdAt).getTime();
+  const updatedTime = new Date(ticket.updatedAt).getTime();
+  return (updatedTime - createdTime) / (1000 * 60 * 60);
+}
+
+// Get high-level ticket metrics
+export async function getTicketMetrics(): Promise<TicketMetrics> {
+  const tickets = await getTickets();
+  
+  const openCount = tickets.filter(t => t.status === 'open').length;
+  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length;
+  const resolvedCount = tickets.filter(t => t.status === 'resolved').length;
+  const closedCount = tickets.filter(t => t.status === 'closed').length;
+  
+  const criticalCount = tickets.filter(t => 
+    (t.priority === 'urgent' || t.priority === 'high') && 
+    (t.status === 'open' || t.status === 'in_progress')
+  ).length;
+  
+  // Calculate average resolution time (only for resolved/closed tickets)
+  const resolvedTickets = tickets.filter(t => t.status === 'resolved' || t.status === 'closed');
+  const avgResolutionTime = resolvedTickets.length > 0
+    ? resolvedTickets.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) / resolvedTickets.length
+    : 0;
+  
+  return {
+    totalTickets: tickets.length,
+    openTickets: openCount,
+    inProgressTickets: inProgressCount,
+    resolvedTickets: resolvedCount,
+    closedTickets: closedCount,
+    avgResolutionTimeHours: Math.round(avgResolutionTime * 10) / 10,
+    criticalTickets: criticalCount,
+    overallSatisfactionScore: 85, // Placeholder: would come from feedback system
+  };
+}
+
+// Get ticket trends over the last 30 days
+export async function getTicketTrends(): Promise<TicketTrendData[]> {
+  const tickets = await getTickets();
+  const trends: Record<string, { created: number; resolved: number }> = {};
+  
+  // Initialize last 30 days
+  for (let i = 0; i < 30; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    trends[dateStr] = { created: 0, resolved: 0 };
+  }
+  
+  // Count tickets created/resolved by date
+  tickets.forEach(ticket => {
+    const createdDate = new Date(ticket.createdAt).toISOString().split('T')[0];
+    if (trends[createdDate]) trends[createdDate].created++;
+    
+    if (ticket.status === 'resolved' || ticket.status === 'closed') {
+      const updatedDate = new Date(ticket.updatedAt).toISOString().split('T')[0];
+      if (trends[updatedDate]) trends[updatedDate].resolved++;
+    }
+  });
+  
+  // Convert to array and sort by date
+  return Object.entries(trends)
+    .map(([date, data]) => ({
+      date,
+      created: data.created,
+      resolved: data.resolved,
+      total: tickets.filter(t => new Date(t.createdAt).toISOString().split('T')[0] <= date).length
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Get agent performance metrics
+export async function getAgentPerformance(): Promise<AgentPerformance[]> {
+  const tickets = await getTickets();
+  const agentMap: Record<string, { name: string; assigned: Ticket[]; resolved: Ticket[] }> = {};
+  
+  // Group tickets by agent
+  tickets.forEach(ticket => {
+    if (ticket.assignedTo) {
+      if (!agentMap[ticket.assignedTo]) {
+        agentMap[ticket.assignedTo] = {
+          name: ticket.assignedName || 'Unknown Agent',
+          assigned: [],
+          resolved: []
+        };
+      }
+      agentMap[ticket.assignedTo].assigned.push(ticket);
+      
+      if (ticket.status === 'resolved' || ticket.status === 'closed') {
+        agentMap[ticket.assignedTo].resolved.push(ticket);
+      }
+    }
+  });
+  
+  // Calculate performance metrics per agent
+  return Object.entries(agentMap).map(([agentId, data]) => {
+    const avgResTime = data.resolved.length > 0
+      ? data.resolved.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) / data.resolved.length
+      : 0;
+    
+    const responseRate = data.assigned.length > 0
+      ? (data.assigned.filter(t => t.messages.length > 0).length / data.assigned.length) * 100
+      : 0;
+    
+    return {
+      agentId,
+      agentName: data.name,
+      assignedTickets: data.assigned.length,
+      resolvedTickets: data.resolved.length,
+      avgResolutionTimeHours: Math.round(avgResTime * 10) / 10,
+      responseRatePercent: Math.round(responseRate)
+    };
+  }).sort((a, b) => b.resolvedTickets - a.resolvedTickets);
+}
+
+// Get category breakdown
+export async function getCategoryBreakdown(): Promise<CategoryBreakdown[]> {
+  const tickets = await getTickets();
+  const categories: Record<string, Ticket[]> = {
+    hardware: [],
+    software: [],
+    network: [],
+    access: [],
+    other: []
+  };
+  
+  tickets.forEach(ticket => {
+    categories[ticket.category].push(ticket);
+  });
+  
+  const total = tickets.length;
+  
+  return Object.entries(categories).map(([category, catTickets]) => {
+    const resolvedTickets = catTickets.filter(t => t.status === 'resolved' || t.status === 'closed');
+    const avgResTime = resolvedTickets.length > 0
+      ? resolvedTickets.reduce((sum, t) => sum + getResolutionTimeHours(t), 0) / resolvedTickets.length
+      : 0;
+    
+    return {
+      category: category as any,
+      count: catTickets.length,
+      percentage: total > 0 ? Math.round((catTickets.length / total) * 100) : 0,
+      avgResolutionTimeHours: Math.round(avgResTime * 10) / 10
+    };
+  });
+}
+
+// Get priority breakdown
+export async function getPriorityBreakdown(): Promise<PriorityBreakdown[]> {
+  const tickets = await getTickets();
+  const priorities: Record<string, Ticket[]> = {
+    low: [],
+    medium: [],
+    high: [],
+    urgent: []
+  };
+  
+  tickets.forEach(ticket => {
+    priorities[ticket.priority].push(ticket);
+  });
+  
+  const total = tickets.length;
+  
+  return Object.entries(priorities).map(([priority, priTickets]) => ({
+    priority: priority as any,
+    count: priTickets.length,
+    percentage: total > 0 ? Math.round((priTickets.length / total) * 100) : 0
+  }));
+}
+
+// Get complete dashboard data
+export async function getDashboardData(): Promise<DashboardData> {
+  return {
+    metrics: await getTicketMetrics(),
+    trends: await getTicketTrends(),
+    agentPerformance: await getAgentPerformance(),
+    categoryBreakdown: await getCategoryBreakdown(),
+    priorityBreakdown: await getPriorityBreakdown(),
+    generatedAt: new Date().toISOString()
+  };
 }
