@@ -149,6 +149,16 @@ export async function initializeDatabase() {
       );
     `);
 
+    // Performance indexes
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_client_id ON tickets(client_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets(assigned_to);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at DESC);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_notif_ticket_id ON notification_logs(ticket_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_notif_sent_at ON notification_logs(sent_at DESC);`);
+
     // Check if table is empty, if so, seed sample data
     const resCount = await client.query("SELECT COUNT(*) FROM tickets");
     if (parseInt(resCount.rows[0].count) === 0) {

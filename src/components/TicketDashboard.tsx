@@ -31,26 +31,17 @@ import {
   Home,
   X,
   ArrowUpDown,
+  Zap,
+  Activity,
 } from "lucide-react";
 
 interface TicketDashboardProps {
   tickets: Ticket[];
   currentUser: { id: string; name: string; role: UserRole; email: string };
   onUpdateStatus: (ticketId: string, status: TicketStatus) => Promise<void>;
-  onUpdatePriority: (
-    ticketId: string,
-    priority: TicketPriority,
-  ) => Promise<void>;
-  onAssignTicket: (
-    ticketId: string,
-    agentId: string,
-    agentName: string,
-  ) => Promise<void>;
-  onPostMessage: (
-    ticketId: string,
-    messageText: string,
-    isInternal: boolean,
-  ) => Promise<void>;
+  onUpdatePriority: (ticketId: string, priority: TicketPriority) => Promise<void>;
+  onAssignTicket: (ticketId: string, agentId: string, agentName: string) => Promise<void>;
+  onPostMessage: (ticketId: string, messageText: string, isInternal: boolean) => Promise<void>;
   supportEngineers: { id: string; name: string }[];
 }
 
@@ -63,51 +54,32 @@ export default function TicketDashboard({
   onPostMessage,
   supportEngineers,
 }: TicketDashboardProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(
-    tickets[0]?.id || null,
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(tickets[0]?.id || null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [locationFilter, setLocationFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<
-    "date_desc" | "date_asc" | "priority" | "status"
-  >("date_desc");
-
-  // Message writing controls
+  const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "priority" | "status">("date_desc");
   const [replyText, setReplyText] = useState("");
   const [internalNote, setInternalNote] = useState(false);
   const [submittingReply, setSubmittingReply] = useState(false);
-
-  // Unread tracking: initialise every loaded ticket as already seen
   const [lastSeen, setLastSeen] = useState<Record<string, number>>(() =>
     Object.fromEntries(tickets.map((t) => [t.id, Date.now()])),
   );
 
-  // Refs for keyboard shortcuts
   const searchRef = useRef<HTMLInputElement>(null);
-  const replyRef = useRef<HTMLTextAreaElement>(null);
   const filteredTicketsRef = useRef<Ticket[]>([]);
   const selectedIdRef = useRef(selectedId);
 
-  const activeTicket = useMemo(() => {
-    return tickets.find((t) => t.id === selectedId) || null;
-  }, [tickets, selectedId]);
+  const activeTicket = useMemo(() => tickets.find((t) => t.id === selectedId) || null, [tickets, selectedId]);
 
-  // Unique locations derived from all tickets (for the location filter dropdown)
-  const uniqueLocations = useMemo(() => {
-    return Array.from(
-      new Set(tickets.map((t) => t.location).filter((l): l is string => !!l)),
-    ).sort();
-  }, [tickets]);
+  const uniqueLocations = useMemo(
+    () => Array.from(new Set(tickets.map((t) => t.location).filter((l): l is string => !!l))).sort(),
+    [tickets],
+  );
 
-  const hasActiveFilters =
-    statusFilter !== "all" ||
-    priorityFilter !== "all" ||
-    categoryFilter !== "all" ||
-    locationFilter !== "all" ||
-    searchTerm !== "";
+  const hasActiveFilters = statusFilter !== "all" || priorityFilter !== "all" || categoryFilter !== "all" || locationFilter !== "all" || searchTerm !== "";
 
   const clearFilters = () => {
     setStatusFilter("all");
@@ -117,28 +89,13 @@ export default function TicketDashboard({
     setSearchTerm("");
   };
 
-  const PRIORITY_ORDER: Record<string, number> = {
-    urgent: 0,
-    high: 1,
-    medium: 2,
-    low: 3,
-  };
-  const STATUS_ORDER: Record<string, number> = {
-    open: 0,
-    in_progress: 1,
-    resolved: 2,
-    closed: 3,
-  };
+  const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+  const STATUS_ORDER: Record<string, number> = { open: 0, in_progress: 1, resolved: 2, closed: 3 };
 
-  // Handle client visibility checks for search list, plus sort
   const filteredTickets = useMemo(() => {
     return tickets
       .filter((t) => {
-        // 1. Client role: only own tickets
-        if (currentUser.role === "client" && t.clientId !== currentUser.id)
-          return false;
-
-        // 2. Search
+        if (currentUser.role === "client" && t.clientId !== currentUser.id) return false;
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch =
           t.title.toLowerCase().includes(searchLower) ||
@@ -146,58 +103,27 @@ export default function TicketDashboard({
           t.id.toLowerCase().includes(searchLower) ||
           t.clientName.toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
-
-        // 3. Status filter
         if (statusFilter !== "all" && t.status !== statusFilter) return false;
-
-        // 4. Priority filter
-        if (priorityFilter !== "all" && t.priority !== priorityFilter)
-          return false;
-
-        // 5. Category filter
-        if (categoryFilter !== "all" && t.category !== categoryFilter)
-          return false;
-
-        // 6. Location filter
-        if (locationFilter !== "all" && t.location !== locationFilter)
-          return false;
-
+        if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
+        if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+        if (locationFilter !== "all" && t.location !== locationFilter) return false;
         return true;
       })
       .sort((a, b) => {
         switch (sortBy) {
           case "date_asc":
-            return (
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            );
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
           case "priority":
-            return (
-              (PRIORITY_ORDER[a.priority] ?? 4) -
-              (PRIORITY_ORDER[b.priority] ?? 4)
-            );
+            return (PRIORITY_ORDER[a.priority] ?? 4) - (PRIORITY_ORDER[b.priority] ?? 4);
           case "status":
-            return (
-              (STATUS_ORDER[a.status] ?? 4) - (STATUS_ORDER[b.status] ?? 4)
-            );
+            return (STATUS_ORDER[a.status] ?? 4) - (STATUS_ORDER[b.status] ?? 4);
           case "date_desc":
           default:
-            return (
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         }
       });
-  }, [
-    tickets,
-    currentUser,
-    searchTerm,
-    statusFilter,
-    priorityFilter,
-    categoryFilter,
-    locationFilter,
-    sortBy,
-  ]);
+  }, [tickets, currentUser, searchTerm, statusFilter, priorityFilter, categoryFilter, locationFilter, sortBy]);
 
-  // Mark ticket as read + keep selectedId ref current
   useEffect(() => {
     if (selectedId) {
       setLastSeen((prev) => ({ ...prev, [selectedId]: Date.now() }));
@@ -205,63 +131,41 @@ export default function TicketDashboard({
     }
   }, [selectedId]);
 
-  // Keep filteredTickets ref current (used by keyboard handler)
   useEffect(() => {
     filteredTicketsRef.current = filteredTickets;
   }, [filteredTickets]);
 
-  // Global keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (document.activeElement as HTMLElement)?.tagName;
-      const isTyping =
-        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-
-      // "/" → focus search
-      if (e.key === "/" && !isTyping) {
-        e.preventDefault();
-        searchRef.current?.focus();
-        return;
-      }
-      // Escape → clear & blur search
-      if (e.key === "Escape" && document.activeElement === searchRef.current) {
-        setSearchTerm("");
-        searchRef.current?.blur();
-        return;
-      }
-      // ↑ / ↓ → navigate ticket list
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (e.key === "/" && !isTyping) { e.preventDefault(); searchRef.current?.focus(); return; }
+      if (e.key === "Escape" && document.activeElement === searchRef.current) { setSearchTerm(""); searchRef.current?.blur(); return; }
       if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !isTyping) {
         e.preventDefault();
         const list = filteredTicketsRef.current;
         const idx = list.findIndex((t) => t.id === selectedIdRef.current);
-        const next =
-          e.key === "ArrowDown"
-            ? list[Math.min(idx + 1, list.length - 1)]
-            : list[Math.max(idx - 1, 0)];
+        const next = e.key === "ArrowDown" ? list[Math.min(idx + 1, list.length - 1)] : list[Math.max(idx - 1, 0)];
         if (next) setSelectedId(next.id);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []); // refs keep this stable across renders
+  }, []);
 
-  // Reset selected ticket if some other state changes it or filter hides it
   const displayTicket = useMemo(() => {
-    if (activeTicket && filteredTickets.find((t) => t.id === activeTicket.id)) {
-      return activeTicket;
-    }
+    if (activeTicket && filteredTickets.find((t) => t.id === activeTicket.id)) return activeTicket;
     return filteredTickets[0] || null;
   }, [filteredTickets, activeTicket]);
 
   const handleReplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyText.trim() || !displayTicket) return;
-
     setSubmittingReply(true);
     try {
       await onPostMessage(displayTicket.id, replyText, internalNote);
       setReplyText("");
-      setInternalNote(false); // Reset internal flag
+      setInternalNote(false);
     } catch (err) {
       console.error("Failed to post reply message:", err);
     } finally {
@@ -269,80 +173,45 @@ export default function TicketDashboard({
     }
   };
 
-  // Prettify categories
   const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case "hardware":
-        return "Sprzęt i urządzenia";
-      case "software":
-        return "Oprogramowanie i aplikacje";
-      case "network":
-        return "Sieci i bezpieczny VPN";
-      case "access":
-        return "Dane uwierzytelniające i uprawnienia";
-      default:
-        return "Zgłoszenie ogólne";
-    }
+    const map: Record<string, string> = {
+      hardware: "Sprzęt",
+      software: "Oprogramowanie",
+      network: "Sieć / VPN",
+      access: "Uprawnienia",
+    };
+    return map[cat] || "Inne";
   };
 
-  // Urgency colors
   const getPriorityBadge = (prio: string) => {
-    switch (prio) {
-      case "urgent":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-            Pilny
-          </span>
-        );
-      case "high":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-            Wysoki
-          </span>
-        );
-      case "medium":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200">
-            Średni
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-            Niski
-          </span>
-        );
-    }
+    const styles: Record<string, string> = {
+      urgent: "bg-rose-500/15 text-rose-400 border-rose-500/20",
+      high: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      medium: "bg-sky-500/15 text-sky-400 border-sky-500/20",
+      low: "bg-white/5 text-white/40 border-white/10",
+    };
+    const labels: Record<string, string> = { urgent: "Pilny", high: "Wysoki", medium: "Średni", low: "Niski" };
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${styles[prio] || styles.low}`}>
+        {labels[prio] || "Niski"}
+      </span>
+    );
   };
 
-  // Status indicators
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "open":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-            ● Otwarte
-          </span>
-        );
-      case "in_progress":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-            ■ W realizacji
-          </span>
-        );
-      case "resolved":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-250">
-            ✓ Rozwiązane
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-            ✕ Zamknięte
-          </span>
-        );
-    }
+    const config: Record<string, { style: string; label: string; dot: string }> = {
+      open: { style: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20", label: "Otwarte", dot: "bg-indigo-400" },
+      in_progress: { style: "text-amber-400 bg-amber-500/10 border-amber-500/20", label: "W realizacji", dot: "bg-amber-400" },
+      resolved: { style: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", label: "Rozwiązane", dot: "bg-emerald-400" },
+      closed: { style: "text-white/40 bg-white/5 border-white/10", label: "Zamknięte", dot: "bg-white/40" },
+    };
+    const c = config[status] || config.closed;
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border ${c.style}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+        {c.label}
+      </span>
+    );
   };
 
   const formattedTime = (isoString: string) => {
@@ -350,801 +219,389 @@ export default function TicketDashboard({
     return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   };
 
-  // Calculate Bento Stat Metrics dynamically from current state dataset
-  const activeCount = tickets.filter(
-    (t) => t.status !== "resolved" && t.status !== "closed",
-  ).length;
-  const urgentCount = tickets.filter(
-    (t) =>
-      t.priority === "urgent" &&
-      t.status !== "resolved" &&
-      t.status !== "closed",
-  ).length;
-  const unassignedCount = tickets.filter(
-    (t) => !t.assignedTo && t.status !== "resolved" && t.status !== "closed",
-  ).length;
-  const resolvedCount = tickets.filter(
-    (t) => t.status === "resolved" || t.status === "closed",
-  ).length;
+  const activeCount = tickets.filter((t) => t.status !== "resolved" && t.status !== "closed").length;
+  const urgentCount = tickets.filter((t) => t.priority === "urgent" && t.status !== "resolved" && t.status !== "closed").length;
+  const unassignedCount = tickets.filter((t) => !t.assignedTo && t.status !== "resolved" && t.status !== "closed").length;
+  const resolvedCount = tickets.filter((t) => t.status === "resolved" || t.status === "closed").length;
+
+  const storeInfo = displayTicket?.location
+    ? STORE_LOCATIONS.find((s) => s.code === displayTicket.location)
+    : null;
 
   return (
-    <div className="space-y-6">
-      {/* 4-Card Bento Stat grid at the top */}
-      <section
-        id="bento-metrics-grid"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5"
-      >
-        {/* Stat Card 1: Active Support cases */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-2xs hover:shadow-xs transition-all duration-300">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-            Aktywna kolejka
-          </span>
-          <div className="flex items-baseline justify-between mt-3">
-            <span className="text-3xl font-extrabold font-sans text-slate-900 tracking-tight">
-              {activeCount}
-            </span>
-            <span className="text-green-600 text-[9px] font-extrabold uppercase tracking-wide bg-green-50 px-2 py-0.5 rounded-full border border-green-100 flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-green-500 animate-ping"></span>{" "}
-              Kanał live
-            </span>
+    <div className="space-y-5">
+      {/* Metric cards */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Aktywna kolejka", value: activeCount, accent: "from-indigo-500 to-violet-500", sub: "Kanał live", subDot: true },
+          { label: "Pilne zgłoszenia", value: urgentCount, accent: urgentCount > 0 ? "from-rose-500 to-pink-500" : "from-white/10 to-white/5", sub: urgentCount > 0 ? "Wymaga działania" : "Optymalnie" },
+          { label: "Do przypisania", value: unassignedCount, accent: unassignedCount > 0 ? "from-amber-500 to-orange-500" : "from-white/10 to-white/5", sub: unassignedCount > 0 ? "Nieprzypisane" : "Brak zaległości" },
+          { label: "Rozwiązane", value: resolvedCount, accent: "from-emerald-500 to-teal-500", sub: "Zamknięte sprawy" },
+        ].map((card) => (
+          <div key={card.label} className="bg-white/[0.03] backdrop-blur border border-white/[0.06] rounded-xl p-4 flex flex-col justify-between hover:border-white/10 transition-all duration-300">
+            <span className="text-[9px] font-bold text-white/30 uppercase tracking-[0.15em]">{card.label}</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className={`text-2xl font-extrabold tracking-tight bg-gradient-to-r ${card.accent} bg-clip-text text-transparent`}>
+                {card.value}
+              </span>
+              <span className="text-[8px] font-semibold uppercase tracking-wider text-white/20 flex items-center gap-1">
+                {card.subDot && <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />}
+                {card.sub}
+              </span>
+            </div>
           </div>
-        </div>
-
-        {/* Stat Card 2: Urgent Priority Count */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-2xs hover:shadow-xs transition-all duration-300">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-            Pilne zgłoszenia
-          </span>
-          <div className="flex items-baseline justify-between mt-3">
-            <span
-              className={`text-3xl font-extrabold font-sans ${urgentCount > 0 ? "text-red-600" : "text-slate-900"} tracking-tight`}
-            >
-              {urgentCount}
-            </span>
-            <span
-              className={`text-[9px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
-                urgentCount > 0
-                  ? "bg-red-50 text-red-600 border-red-100 animate-pulse"
-                  : "bg-slate-50 text-slate-500 border-slate-100"
-              }`}
-            >
-              {urgentCount > 0 ? "Wymaga działania" : "Optymalnie"}
-            </span>
-          </div>
-        </div>
-
-        {/* Stat Card 3: Unassigned Cases */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-2xs hover:shadow-xs transition-all duration-300">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-            Do przypisania
-          </span>
-          <div className="flex items-baseline justify-between mt-3">
-            <span
-              className={`text-3xl font-extrabold font-sans ${unassignedCount > 0 ? "text-amber-600" : "text-slate-900"} tracking-tight`}
-            >
-              {unassignedCount}
-            </span>
-            <span
-              className={`text-[9px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
-                unassignedCount > 0
-                  ? "bg-amber-50 text-amber-600 border-amber-100"
-                  : "bg-slate-50 text-slate-500 border-slate-100"
-              }`}
-            >
-              {unassignedCount > 0 ? "Nieprzypisane" : "Brak zaległości"}
-            </span>
-          </div>
-        </div>
-
-        {/* Stat Card 4: Historical resolution index */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-2xs hover:shadow-xs transition-all duration-300">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-            Ukończone sprawy
-          </span>
-          <div className="flex items-baseline justify-between mt-3">
-            <span className="text-3xl font-extrabold font-sans text-slate-900 tracking-tight">
-              {resolvedCount}
-            </span>
-            <span className="text-indigo-600 text-[9px] font-extrabold uppercase tracking-wide bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-              SLA Spełnione
-            </span>
-          </div>
-        </div>
+        ))}
       </section>
 
-      {/* Main Backlog search columns (Primary Bento Sections) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start h-auto">
-        {/* Sidebar Search and Filter Columns (Left Bento Block) */}
-        <div
-          id="bento-search-sidepanel"
-          className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs hover:shadow-sm transition-shadow duration-300"
-        >
-          {/* Search header panel */}
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Szukaj… (wciśnij / aby skupić)"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-505 bg-slate-50/50 font-sans text-slate-800"
-              />
-            </div>
-          </div>
-
-          {/* Filters Panel — 2×2 grid */}
-          <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <div>
-              <span className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                Status
-              </span>
-              <select
-                aria-label="Filter status dropdown"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full text-[10px] bg-white border border-slate-250 rounded-lg p-1.5 text-slate-700 focus:outline-hidden focus:border-indigo-500 cursor-pointer font-sans"
-              >
-                <option value="all">Wszystkie</option>
-                <option value="open">Otwarte</option>
-                <option value="in_progress">W toku</option>
-                <option value="resolved">Rozwiązane</option>
-                <option value="closed">Zamknięte</option>
-              </select>
-            </div>
-
-            <div>
-              <span className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                Priorytet
-              </span>
-              <select
-                aria-label="Filter urgency dropdown"
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className="w-full text-[10px] bg-white border border-slate-250 rounded-lg p-1.5 text-slate-700 focus:outline-hidden focus:border-indigo-500 cursor-pointer font-sans"
-              >
-                <option value="all">Wszystkie</option>
-                <option value="low">Niski</option>
-                <option value="medium">Średni</option>
-                <option value="high">Wysoki</option>
-                <option value="urgent">Pilny</option>
-              </select>
-            </div>
-
-            <div>
-              <span className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                Typ
-              </span>
-              <select
-                aria-label="Filter category type"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full text-[10px] bg-white border border-slate-250 rounded-lg p-1.5 text-slate-700 focus:outline-hidden focus:border-indigo-500 cursor-pointer font-sans"
-              >
-                <option value="all">Wszystkie</option>
-                <option value="hardware">Sprzęt</option>
-                <option value="software">Oprogramowanie</option>
-                <option value="network">Sieć / VPN</option>
-                <option value="access">Uprawnienia</option>
-              </select>
-            </div>
-
-            <div>
-              <span className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                Lokalizacja
-              </span>
-              <select
-                aria-label="Filter by store location"
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="w-full text-[10px] bg-white border border-slate-250 rounded-lg p-1.5 text-slate-700 focus:outline-hidden focus:border-indigo-500 cursor-pointer font-sans"
-              >
-                <option value="all">Wszystkie</option>
-                {uniqueLocations.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Sort controls */}
-          <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-            <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
-              <ArrowUpDown className="w-3 h-3" /> Sortuj:
-            </span>
-            {[
-              { key: "date_desc" as const, label: "↓ Najnowsze" },
-              { key: "date_asc" as const, label: "↑ Najstarsze" },
-              { key: "priority" as const, label: "⚡ Priorytet" },
-              { key: "status" as const, label: "◉ Status" },
-            ].map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setSortBy(s.key)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer select-none ${
-                  sortBy === s.key
-                    ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Ticket List Queue in sidebar */}
-          <div className="space-y-2.5 overflow-y-auto max-h-[500px] pr-1">
-            <div className="flex justify-between items-center px-1 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Kolejka zgłoszeń ({filteredTickets.length} poz.)
-              </span>
-              <div className="flex items-center gap-1.5">
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearFilters}
-                    className="text-[9px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-0.5 cursor-pointer transition-colors"
-                  >
-                    <X className="w-3 h-3" /> Wyczyść
-                  </button>
-                )}
-                {currentUser.role !== "client" && (
-                  <span className="text-[9px] font-semibold bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                    Pełny podgląd
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {filteredTickets.length === 0 ? (
-              <div className="text-center py-12 border border-slate-200 border-dashed bg-slate-50/55 rounded-xl">
-                <Clock className="w-7 h-7 text-slate-350 mx-auto mb-2" />
-                <p className="text-xs text-slate-500 font-medium">
-                  Brak aktywnych zgłoszeń.
-                </p>
-              </div>
-            ) : (
-              filteredTickets.map((t) => {
-                const isSelected = displayTicket && displayTicket.id === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedId(t.id)}
-                    className={`w-full text-left p-3.5 rounded-xl border text-xs transition-all flex flex-col gap-2 cursor-pointer select-none ${
-                      isSelected
-                        ? "border-indigo-650 bg-indigo-50/20 ring-1 ring-indigo-500/10 shadow-xs"
-                        : "border-slate-205 hover:border-slate-350 hover:bg-slate-50/60 bg-white shadow-2xs"
-                    }`}
-                  >
-                    {(() => {
-                      const lastSeenAt = lastSeen[t.id] ?? 0;
-                      const unreadCount = t.messages.filter((m) => {
-                        const msgTime = new Date(m.createdAt).getTime();
-                        if (msgTime <= lastSeenAt) return false;
-                        if (currentUser.role === "client")
-                          return (
-                            (m.senderRole === "agent" ||
-                              m.senderRole === "admin") &&
-                            !m.isInternal
-                          );
-                        return m.senderRole === "client";
-                      }).length;
-                      return (
-                        <div className="flex justify-between items-center gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                              {t.id}
-                            </span>
-                            {unreadCount > 0 && (
-                              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-500 text-white min-w-[16px]">
-                                {unreadCount}
-                              </span>
-                            )}
-                          </div>
-                          <span
-                            className="text-[9px] font-medium text-slate-400"
-                            title={formattedTime(t.createdAt)}
-                          >
-                            {timeAgo(t.createdAt)}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    <div>
-                      <p className="font-bold text-slate-800 line-clamp-1 truncate font-sans text-xs mb-0.5">
-                        {t.title}
-                      </p>
-                      <p className="text-slate-500 line-clamp-2 text-[11px] leading-normal truncate">
-                        {t.description}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap justify-between items-center gap-1.5 pt-2 border-t border-slate-100 mt-1">
-                      <div className="flex gap-1 items-center flex-wrap">
-                        {getPriorityBadge(t.priority)}
-                        {getStatusBadge(t.status)}
-                        {t.location && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 border border-indigo-150 text-indigo-700">
-                            📍 {t.location}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-bold truncate max-w-[130px]">
-                        👤 {t.clientName.split(" ")[0]}
-                      </span>
-                    </div>
-
-                    {/* Quick-assign to self — agents/admins only */}
-                    {(currentUser.role === "agent" ||
-                      currentUser.role === "admin") &&
-                      t.assignedTo !== currentUser.id &&
-                      t.status !== "resolved" &&
-                      t.status !== "closed" && (
-                        <div className="border-t border-slate-100 mt-0.5 pt-2 flex">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAssignTicket(
-                                t.id,
-                                currentUser.id,
-                                currentUser.name,
-                              );
-                            }}
-                            className="text-[9px] font-bold text-indigo-500 hover:text-indigo-700 flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <UserCheck className="w-3 h-3" /> Przypisz do mnie
-                          </button>
-                        </div>
-                      )}
-                  </button>
-                );
-              })
-            )}
-          </div>
+      {/* Search & Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder='Szukaj zgłoszeń... (naciśnij "/")'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.06] rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/30 focus:ring-1 focus:ring-indigo-500/20 font-mono"
+          />
         </div>
 
-        {/* Ticket Operations Panel Detail (Right Bento Block) */}
-        <div id="bento-detail-panel" className="lg:col-span-7 space-y-5 h-full">
+        {/* Filter selects */}
+        {[
+          { value: statusFilter, onChange: setStatusFilter, options: [["all", "Status"], ["open", "Otwarte"], ["in_progress", "W realizacji"], ["resolved", "Rozwiązane"], ["closed", "Zamknięte"]] },
+          { value: priorityFilter, onChange: setPriorityFilter, options: [["all", "Priorytet"], ["urgent", "Pilny"], ["high", "Wysoki"], ["medium", "Średni"], ["low", "Niski"]] },
+          { value: categoryFilter, onChange: setCategoryFilter, options: [["all", "Kategoria"], ["hardware", "Sprzęt"], ["software", "Oprogramowanie"], ["network", "Sieć"], ["access", "Uprawnienia"], ["other", "Inne"]] },
+        ].map((filter, i) => (
+          <select
+            key={i}
+            value={filter.value}
+            onChange={(e) => filter.onChange(e.target.value)}
+            className="px-2.5 py-2 text-[10px] bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/60 focus:outline-none focus:border-indigo-500/30 cursor-pointer appearance-none"
+          >
+            {filter.options.map(([val, label]) => (
+              <option key={val} value={val} className="bg-[#0d0d14] text-white">{label}</option>
+            ))}
+          </select>
+        ))}
+
+        {uniqueLocations.length > 0 && (
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            className="px-2.5 py-2 text-[10px] bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/60 focus:outline-none focus:border-indigo-500/30 cursor-pointer appearance-none"
+          >
+            <option value="all" className="bg-[#0d0d14] text-white">Lokalizacja</option>
+            {uniqueLocations.map((loc) => (
+              <option key={loc} value={loc} className="bg-[#0d0d14] text-white">{loc}</option>
+            ))}
+          </select>
+        )}
+
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className="px-2.5 py-2 text-[10px] bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/60 focus:outline-none focus:border-indigo-500/30 cursor-pointer appearance-none"
+        >
+          <option value="date_desc" className="bg-[#0d0d14] text-white">Najnowsze</option>
+          <option value="date_asc" className="bg-[#0d0d14] text-white">Najstarsze</option>
+          <option value="priority" className="bg-[#0d0d14] text-white">Priorytet</option>
+          <option value="status" className="bg-[#0d0d14] text-white">Status</option>
+        </select>
+
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="flex items-center gap-1 px-2.5 py-2 text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-all cursor-pointer"
+          >
+            <X className="w-3 h-3" />
+            Wyczyść
+          </button>
+        )}
+
+        <span className="text-[10px] text-white/20 ml-auto font-mono">
+          {filteredTickets.length}/{tickets.length}
+        </span>
+      </div>
+
+      {/* Main split view */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Ticket list */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-1.5 max-h-[calc(100vh-320px)] overflow-y-auto pr-1 scrollbar-thin">
+          {filteredTickets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                <Search className="w-5 h-5 text-white/20" />
+              </div>
+              <p className="text-xs text-white/30">Brak zgłoszeń</p>
+            </div>
+          ) : (
+            filteredTickets.map((t) => {
+              const isSelected = displayTicket?.id === t.id;
+              const hasNewMessages = t.messages.length > 0 && (!lastSeen[t.id] || new Date(t.messages[t.messages.length - 1].createdAt).getTime() > lastSeen[t.id]);
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedId(t.id)}
+                  className={`w-full text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer group ${
+                    isSelected
+                      ? "bg-white/[0.06] border-indigo-500/30 shadow-lg shadow-indigo-500/5"
+                      : "bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.04] hover:border-white/[0.08]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <h3 className="text-xs font-semibold text-white/90 truncate flex-1 leading-tight">{t.title}</h3>
+                    {hasNewMessages && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 mt-1" />}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {getStatusBadge(t.status)}
+                    {getPriorityBadge(t.priority)}
+                    <span className="text-[9px] text-white/20 ml-auto font-mono">{timeAgo(t.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 text-[9px] text-white/25">
+                    <span className="font-mono">{t.id}</span>
+                    <span>|</span>
+                    <span>{t.clientName}</span>
+                    {t.messages.length > 0 && (
+                      <>
+                        <span>|</span>
+                        <MessageSquare className="w-2.5 h-2.5 inline" />
+                        <span>{t.messages.length}</span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Ticket detail */}
+        <div className="lg:col-span-7 xl:col-span-8">
           {displayTicket ? (
-            <>
-              {/* Header Identity banner */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-                <div className="flex flex-wrap justify-between items-start gap-4 mb-3 pb-3 border-b border-slate-100">
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                      <span className="text-[9px] bg-slate-100 text-slate-600 border border-slate-200 font-mono font-bold px-2 py-0.5 rounded">
-                        ID SPRAWY: {displayTicket.id}
-                      </span>
-                      <span className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-slate-50 text-slate-500 border border-slate-200 uppercase tracking-wide">
-                        📂 {getCategoryLabel(displayTicket.category)}
-                      </span>
-                      {displayTicket.location && (
-                        <span className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wide flex items-center gap-1">
-                          📍 {displayTicket.location}
-                        </span>
-                      )}
+            <div className="bg-white/[0.03] backdrop-blur border border-white/[0.06] rounded-xl overflow-hidden">
+              {/* Header */}
+              <div className="p-5 border-b border-white/[0.06]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <h2 className="text-base font-bold text-white tracking-tight mb-1.5">{displayTicket.title}</h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getStatusBadge(displayTicket.status)}
+                      {getPriorityBadge(displayTicket.priority)}
+                      <span className="text-[10px] text-white/20 font-mono">{displayTicket.id}</span>
+                      <span className="text-[10px] text-white/15">|</span>
+                      <span className="text-[10px] text-white/30">{getCategoryLabel(displayTicket.category)}</span>
                     </div>
-                    <h1 className="text-md sm:text-lg font-extrabold text-slate-900 font-sans tracking-tight">
-                      {displayTicket.title}
-                    </h1>
-                  </div>
-
-                  <div className="flex gap-1.5 shrink-0 items-center">
-                    {getPriorityBadge(displayTicket.priority)}
-                    {getStatusBadge(displayTicket.status)}
                   </div>
                 </div>
 
-                {/* Action Operations Controller Toolbar (RBAC Protected: Hide/view details for Client) */}
-                <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex flex-wrap gap-4 items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-slate-400 uppercase tracking-widest text-[9px]">
-                      Osoba przypisana:
-                    </span>
-                    <span className="text-slate-800 font-bold font-sans flex items-center gap-1">
-                      {displayTicket.assignedName
-                        ? `🛠️ ${displayTicket.assignedName}`
-                        : "❌ Nieprzypisano"}
-                    </span>
-                  </div>
-
-                  {/* Operations selectors visible only to support staff (agent / admin roles) */}
-                  {currentUser.role !== "client" ? (
-                    <div className="flex flex-wrap gap-2">
-                      {/* Status Changer */}
-                      <div>
-                        <select
-                          aria-label="Ticket Status Change"
-                          value={displayTicket.status}
-                          onChange={(e) =>
-                            onUpdateStatus(
-                              displayTicket.id,
-                              e.target.value as TicketStatus,
-                            )
-                          }
-                          className="bg-white border border-slate-250 text-[10px] font-bold text-slate-700 rounded-lg px-2.5 py-1 focus:outline-hidden focus:border-indigo-500 cursor-pointer shadow-2xs font-sans"
-                        >
-                          <option value="open">Otwarta sprawa</option>
-                          <option value="in_progress">Prace w toku</option>
-                          <option value="resolved">
-                            Oznacz jako rozwiązane
-                          </option>
-                          <option value="closed">Zamknij sprawę</option>
-                        </select>
-                      </div>
-
-                      {/* Urgency Modifier */}
-                      <div>
-                        <select
-                          aria-label="Ticket Priority Modification"
-                          value={displayTicket.priority}
-                          onChange={(e) =>
-                            onUpdatePriority(
-                              displayTicket.id,
-                              e.target.value as TicketPriority,
-                            )
-                          }
-                          className="bg-white border border-slate-250 text-[10px] font-bold text-slate-755 rounded-lg px-2.5 py-1 focus:outline-hidden focus:border-indigo-500 cursor-pointer shadow-2xs font-sans"
-                        >
-                          <option value="low">Standardowy priorytet</option>
-                          <option value="medium">Średni priorytet</option>
-                          <option value="high">Wysoki priorytet</option>
-                          <option value="urgent">
-                            Pilna awaria (krytyczny)
-                          </option>
-                        </select>
-                      </div>
-
-                      {/* Assignee trigger */}
-                      <div>
-                        <select
-                          aria-label="Assign Support Staff"
-                          value={displayTicket.assignedTo || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const found = supportEngineers.find(
-                              (se) => se.id === val,
-                            );
-                            if (found) {
-                              onAssignTicket(
-                                displayTicket.id,
-                                found.id,
-                                found.name,
-                              );
-                            }
-                          }}
-                          className="bg-white border border-slate-250 text-[10px] font-bold text-slate-707 rounded-lg px-2.5 py-1 focus:outline-hidden focus:border-indigo-500 cursor-pointer shadow-2xs font-sans"
-                        >
-                          <option value="">Przypisz pracownika...</option>
-                          {supportEngineers.map((se) => (
-                            <option key={se.id} value={se.id}>
-                              {se.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                {/* Store info */}
+                {storeInfo && (
+                  <div className="mt-3 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex items-center gap-2 text-[10px] text-white/40">
+                      <MapPin className="w-3 h-3 text-indigo-400" />
+                      <span className="font-semibold text-white/60">{storeInfo.name}</span>
                     </div>
-                  ) : displayTicket.clientId === currentUser.id &&
-                    displayTicket.status !== "closed" ? (
-                    <button
-                      onClick={() =>
-                        onUpdateStatus(
-                          displayTicket.id,
-                          displayTicket.status === "resolved"
-                            ? "closed"
-                            : "resolved",
-                        )
-                      }
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {displayTicket.status === "resolved"
-                        ? "Zamknij sprawę"
-                        : "Oznacz jako rozwiązane"}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Description Card & Attachments viewer */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 shadow-2xs">
-                {(() => {
-                  const storeDetails = displayTicket.location
-                    ? STORE_LOCATIONS.find(
-                        (s) => s.code === displayTicket.location,
-                      )
-                    : null;
-                  if (storeDetails) {
-                    return (
-                      <div className="bg-indigo-50/15 border border-indigo-105 p-4 rounded-xl flex items-start gap-3">
-                        <div className="p-2 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-lg shrink-0">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                        <div className="space-y-0.5 min-w-0 flex-1">
-                          <h4 className="text-[10px] font-extrabold uppercase text-indigo-700 tracking-wider">
-                            Lokalizacja sklepu
-                          </h4>
-                          <p
-                            className="text-xs font-bold text-slate-800 truncate"
-                            title={storeDetails.name}
-                          >
-                            {storeDetails.code} — {storeDetails.name}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Adres:{" "}
-                            <span className="font-medium text-slate-600">
-                              {storeDetails.address}
-                            </span>
-                          </p>
-                        </div>
-                        <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 text-right">
-                          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">
-                            E-mail sklepu
-                          </span>
-                          <a
-                            href={`mailto:${storeDetails.email}`}
-                            className="text-[10px] bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-650 font-mono flex items-center gap-1 font-semibold shadow-3xs cursor-pointer"
-                          >
-                            <Mail className="w-3 h-3 text-indigo-500 shrink-0" />
-                            <span>{storeDetails.email}</span>
-                          </a>
-                        </div>
-                      </div>
-                    );
-                  } else if (displayTicket.location) {
-                    return (
-                      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-start gap-3">
-                        <div className="p-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg shrink-0">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                        <div className="space-y-0.5 min-w-0 flex-1">
-                          <h4 className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                            Lokalizacja sklepu (Kod)
-                          </h4>
-                          <p className="text-xs font-bold text-slate-800">
-                            📍 {displayTicket.location}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
-                <div>
-                  <h3 className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                    Opis problemu
-                  </h3>
-                  <div className="bg-slate-50/65 font-sans border border-slate-200 p-4.5 rounded-xl text-slate-700 text-sm whitespace-pre-line leading-relaxed shadow-inner">
-                    {displayTicket.description}
-                  </div>
-                </div>
-
-                {/* Attachments Section */}
-                {displayTicket.attachments &&
-                  displayTicket.attachments.length > 0 && (
-                    <div>
-                      <h3 className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider mb-2">
-                        Załączone pliki ({displayTicket.attachments.length})
-                      </h3>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                        {displayTicket.attachments.map((file, idx) => {
-                          const isImage = file.type.startsWith("image/");
-                          return (
-                            <div
-                              key={`attach-${idx}`}
-                              className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex flex-col justify-between hover:border-slate-350 transition-colors"
-                            >
-                              {isImage ? (
-                                <div className="h-24 bg-slate-100 flex items-center justify-center overflow-hidden border-b border-slate-200 select-none">
-                                  <img
-                                    src={file.data}
-                                    alt={file.name}
-                                    className="object-cover h-full w-full"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="h-24 bg-slate-100 border-b border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                                  <FileCode className="w-8 h-8 text-slate-400 mb-1" />
-                                  <span className="text-[10px] font-mono truncate max-w-[90%] px-1 font-bold uppercase text-slate-500">
-                                    {file.name.split(".").pop() || "DOC"}
-                                  </span>
-                                </div>
-                              )}
-                              <div className="p-2.5 flex items-center justify-between text-[11px] gap-2">
-                                <span
-                                  className="truncate font-bold text-slate-700 font-sans"
-                                  title={file.name}
-                                >
-                                  {file.name}
-                                </span>
-                                <a
-                                  href={file.data}
-                                  download={file.name}
-                                  className="p-1 px-1.5 text-slate-600 hover:text-indigo-650 rounded-lg bg-white hover:bg-indigo-50 border border-slate-200 shadow-2xs shrink-0 font-bold flex items-center justify-center cursor-pointer"
-                                  title="Pobierz załącznik"
-                                  referrerPolicy="no-referrer"
-                                >
-                                  <Download className="w-3 h-3" />
-                                </a>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                    <div className="flex items-center gap-3 mt-1 text-[9px] text-white/25">
+                      <span className="flex items-center gap-1"><Home className="w-2.5 h-2.5" />{storeInfo.address}</span>
+                      <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{storeInfo.email}</span>
                     </div>
+                  </div>
+                )}
+
+                {/* Meta row */}
+                <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] text-white/30">
+                  <span className="flex items-center gap-1"><User className="w-3 h-3" />{displayTicket.clientName}</span>
+                  <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{displayTicket.clientEmail}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formattedTime(displayTicket.createdAt)}</span>
+                  {displayTicket.assignedName && (
+                    <span className="flex items-center gap-1 text-indigo-400"><UserCheck className="w-3 h-3" />{displayTicket.assignedName}</span>
                   )}
-
-                {/* Informative timing specs */}
-                <div className="text-[10px] text-slate-400 font-bold font-mono tracking-wide flex flex-wrap gap-4 border-t border-slate-100 pt-4 uppercase">
-                  <div title={formattedTime(displayTicket.createdAt)}>
-                    <span className="text-slate-300">Zgłoszono:</span>{" "}
-                    {timeAgo(displayTicket.createdAt)} przez{" "}
-                    {displayTicket.clientName.split(" ")[0]}
-                  </div>
-                  <div title={formattedTime(displayTicket.updatedAt)}>
-                    <span className="text-slate-300">Ostatnia zmiana:</span>{" "}
-                    {timeAgo(displayTicket.updatedAt)}
-                  </div>
                 </div>
               </div>
 
-              {/* Conversation Log & Message Desk */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-2xs">
-                <h3 className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center justify-between col-span-12">
-                  <span>
-                    Historia korespondencji (
-                    {displayTicket.messages?.filter(
-                      (m) => !m.isInternal || currentUser.role !== "client",
-                    ).length || 0}
-                    )
-                  </span>
-                  <span className="text-[8px] font-mono font-bold text-slate-300 flex items-center gap-1 justify-end shrink-0">
-                    SYNCHRONIZACJA LIVE
-                  </span>
-                </h3>
+              {/* Description */}
+              <div className="p-5 border-b border-white/[0.06]">
+                <p className="text-xs text-white/60 leading-relaxed whitespace-pre-wrap">{displayTicket.description}</p>
 
-                {/* Message Feed List */}
-                <div className="space-y-3.5 overflow-y-auto max-h-[280px] pr-1">
-                  {(displayTicket.messages || []).length === 0 ? (
-                    <div className="text-center py-7 border border-slate-150 border-dashed rounded-xl bg-slate-50/55">
-                      <MessageSquare className="w-5 h-5 text-slate-300 mx-auto mb-1.5" />
-                      <p className="text-xs text-slate-500 font-medium">
-                        Brak wpisów o aktywności.
-                      </p>
+                {/* Attachments */}
+                {displayTicket.attachments.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Załączniki</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {displayTicket.attachments.map((att, idx) => (
+                        <a
+                          key={idx}
+                          href={att.data}
+                          download={att.name}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg text-[10px] text-white/50 hover:text-white/70 hover:border-white/10 transition-all"
+                        >
+                          <FileCode className="w-3 h-3" />
+                          {att.name}
+                          <Download className="w-2.5 h-2.5 ml-1" />
+                        </a>
+                      ))}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              {(currentUser.role === "admin" || currentUser.role === "agent") && (
+                <div className="p-4 border-b border-white/[0.06] flex flex-wrap gap-2">
+                  {/* Status actions */}
+                  {(["open", "in_progress", "resolved", "closed"] as TicketStatus[])
+                    .filter((s) => s !== displayTicket.status)
+                    .map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => onUpdateStatus(displayTicket.id, s)}
+                        className="px-3 py-1.5 text-[10px] font-semibold bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/50 hover:text-white hover:border-white/15 transition-all cursor-pointer"
+                      >
+                        {s === "open" ? "Otwórz" : s === "in_progress" ? "W realizacji" : s === "resolved" ? "Rozwiąż" : "Zamknij"}
+                      </button>
+                    ))}
+
+                  <div className="w-px h-6 bg-white/[0.06] mx-1" />
+
+                  {/* Priority */}
+                  <select
+                    value={displayTicket.priority}
+                    onChange={(e) => onUpdatePriority(displayTicket.id, e.target.value as TicketPriority)}
+                    className="px-2.5 py-1.5 text-[10px] bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/50 focus:outline-none cursor-pointer appearance-none"
+                  >
+                    <option value="low" className="bg-[#0d0d14]">Niski</option>
+                    <option value="medium" className="bg-[#0d0d14]">Średni</option>
+                    <option value="high" className="bg-[#0d0d14]">Wysoki</option>
+                    <option value="urgent" className="bg-[#0d0d14]">Pilny</option>
+                  </select>
+
+                  {/* Assign */}
+                  <select
+                    value={displayTicket.assignedTo || ""}
+                    onChange={(e) => {
+                      const eng = supportEngineers.find((se) => se.id === e.target.value);
+                      if (eng) onAssignTicket(displayTicket.id, eng.id, eng.name);
+                    }}
+                    className="px-2.5 py-1.5 text-[10px] bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/50 focus:outline-none cursor-pointer appearance-none"
+                  >
+                    <option value="" className="bg-[#0d0d14]">Przypisz...</option>
+                    {supportEngineers.map((eng) => (
+                      <option key={eng.id} value={eng.id} className="bg-[#0d0d14]">{eng.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Client status actions */}
+              {currentUser.role === "client" && displayTicket.clientId === currentUser.id && (
+                <div className="p-4 border-b border-white/[0.06] flex flex-wrap gap-2">
+                  {displayTicket.status !== "resolved" && displayTicket.status !== "closed" && (
+                    <>
+                      <button onClick={() => onUpdateStatus(displayTicket.id, "resolved")} className="px-3 py-1.5 text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer">
+                        Rozwiąż
+                      </button>
+                      <button onClick={() => onUpdateStatus(displayTicket.id, "closed")} className="px-3 py-1.5 text-[10px] font-semibold bg-white/[0.03] border border-white/[0.06] rounded-lg text-white/50 hover:text-white hover:border-white/15 transition-all cursor-pointer">
+                        Zamknij
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Messages */}
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquare className="w-3.5 h-3.5 text-white/30" />
+                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                    Konwersacja ({displayTicket.messages.filter((m) => currentUser.role !== "client" || !m.isInternal).length})
+                  </span>
+                </div>
+
+                <div className="space-y-3 max-h-64 overflow-y-auto mb-4 pr-1">
+                  {displayTicket.messages.length === 0 ? (
+                    <p className="text-[10px] text-white/20 text-center py-6">Brak wiadomości</p>
                   ) : (
-                    displayTicket.messages.map((m) => {
-                      // Filter internal notes if the active logged-in role is client
-                      if (m.isInternal && currentUser.role === "client")
-                        return null;
-
-                      const isStaff =
-                        m.senderRole === "agent" || m.senderRole === "admin";
-                      const isSelf = m.senderId === currentUser.id;
-
-                      return (
+                    displayTicket.messages
+                      .filter((m) => currentUser.role !== "client" || !m.isInternal)
+                      .map((msg) => (
                         <div
-                          key={m.id}
-                          className={`p-3.5 rounded-xl border text-xs leading-relaxed space-y-1 w-full ${
-                            m.isInternal
-                              ? "bg-amber-50/60 border-amber-200 text-amber-900 shadow-2xs"
-                              : isSelf
-                                ? "bg-indigo-50/20 border-indigo-150 text-slate-800"
-                                : isStaff
-                                  ? "bg-slate-50 border-slate-200 text-slate-805"
-                                  : "bg-slate-50 border-slate-200 text-slate-805"
+                          key={msg.id}
+                          className={`p-3 rounded-lg border ${
+                            msg.isInternal
+                              ? "bg-amber-500/5 border-amber-500/10"
+                              : "bg-white/[0.02] border-white/[0.04]"
                           }`}
                         >
-                          <div className="flex justify-between items-center text-[10px] font-sans border-b border-black/5 pb-1 mb-1">
-                            <span className="flex items-center gap-1.5 text-slate-500">
-                              <strong className="text-slate-800">
-                                {m.senderName}
-                              </strong>
-                              <span className="text-[8px] font-bold uppercase px-1 rounded bg-slate-200/85 text-slate-600 font-mono tracking-wider">
-                                {m.senderRole}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-semibold text-white/60">{msg.senderName}</span>
+                              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold ${
+                                msg.senderRole === "admin"
+                                  ? "bg-violet-500/15 text-violet-400"
+                                  : msg.senderRole === "agent"
+                                    ? "bg-indigo-500/15 text-indigo-400"
+                                    : "bg-white/5 text-white/30"
+                              }`}>
+                                {msg.senderRole === "admin" ? "Admin" : msg.senderRole === "agent" ? "Agent" : "Klient"}
                               </span>
-                              {m.isInternal && (
-                                <span className="inline-flex items-center gap-0.5 text-[8px] font-bold bg-amber-200 text-amber-800 px-1 rounded border border-amber-300">
-                                  <Lock className="w-2 h-2" /> Notatka
-                                  wewnętrzna
+                              {msg.isInternal && (
+                                <span className="flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 bg-amber-500/15 text-amber-400 rounded-full font-semibold">
+                                  <Lock className="w-2 h-2" />
+                                  Notatka wewnętrzna
                                 </span>
                               )}
-                            </span>
-                            <span
-                              className="text-slate-400 font-mono"
-                              title={formattedTime(m.createdAt)}
-                            >
-                              {timeAgo(m.createdAt)}
-                            </span>
+                            </div>
+                            <span className="text-[9px] text-white/20 font-mono">{timeAgo(msg.createdAt)}</span>
                           </div>
-                          <p className="whitespace-pre-line text-[11px] text-slate-707">
-                            {m.message}
-                          </p>
+                          <p className="text-[11px] text-white/50 leading-relaxed whitespace-pre-wrap">{msg.message}</p>
                         </div>
-                      );
-                    })
+                      ))
                   )}
                 </div>
 
-                {/* Discussion Write Form */}
-                <form
-                  onSubmit={handleReplySubmit}
-                  className="border-t border-slate-100 pt-4.5 space-y-3.5"
-                >
-                  <div>
-                    <textarea
-                      ref={replyRef}
-                      rows={2}
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                          e.preventDefault();
-                          handleReplySubmit(e as unknown as React.FormEvent);
-                        }
-                      }}
-                      placeholder={
-                        internalNote
-                          ? "Wprowadź poufną notatkę wewnętrzną wsparcia IT..."
-                          : "Wpisz odpowiedź… (Ctrl+Enter aby wysłać)"
-                      }
-                      className="w-full px-3.5 py-2.5 text-xs border border-slate-205 rounded-xl focus:outline-hidden focus:border-indigo-505 focus:ring-1 focus:ring-indigo-500 bg-slate-50/60 font-sans text-slate-850 shadow-inner"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex justify-between items-center flex-wrap gap-2.5">
-                    {/* Internal note controller (Only visible to agent/admin Roles) */}
-                    {currentUser.role !== "client" ? (
-                      <label className="flex items-center gap-2 text-xs text-amber-855 font-bold cursor-pointer select-none">
+                {/* Reply form */}
+                <form onSubmit={handleReplySubmit} className="space-y-2">
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Napisz odpowiedź..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-xs bg-white/[0.03] border border-white/[0.06] rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/30 focus:ring-1 focus:ring-indigo-500/20 resize-none"
+                  />
+                  <div className="flex items-center justify-between">
+                    {(currentUser.role === "admin" || currentUser.role === "agent") && (
+                      <label className="flex items-center gap-1.5 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={internalNote}
                           onChange={(e) => setInternalNote(e.target.checked)}
-                          className="rounded accent-amber-600 focus:ring-amber-500 h-4 w-4 border-amber-300 cursor-pointer"
+                          className="w-3 h-3 rounded accent-amber-500"
                         />
-                        <span>
-                          Zapisz jako wewnętrzną poufną notatkę agenta
+                        <span className="text-[10px] text-white/30 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          Notatka wewnętrzna
                         </span>
                       </label>
-                    ) : (
-                      <div />
                     )}
-
                     <button
                       type="submit"
                       disabled={submittingReply || !replyText.trim()}
-                      className="flex items-center gap-1.5 px-4.5 py-2 text-xs font-bold bg-slate-900 hover:bg-indigo-950 border border-slate-900 hover:border-indigo-950 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 select-none"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[10px] font-semibold rounded-lg transition-all cursor-pointer disabled:opacity-30 shadow-lg shadow-indigo-500/10 ml-auto"
                     >
-                      {submittingReply ? (
-                        <span className="inline-block animate-spin border-2 border-white border-t-transparent rounded-full w-3.5 h-3.5"></span>
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      <span>
-                        {internalNote
-                          ? "Dodaj notatkę wewnętrzną"
-                          : "Wyślij wiadomość"}
-                      </span>
+                      <Send className="w-3 h-3" />
+                      {submittingReply ? "Wysyłanie..." : "Wyślij"}
                     </button>
                   </div>
                 </form>
               </div>
-            </>
+            </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 p-14 text-center shadow-2xs">
-              <ShieldAlert className="w-9 h-9 text-slate-300 mx-auto mb-2.5" />
-              <h2 className="text-sm font-bold text-slate-707">
-                Brak wybranego zgłoszenia
-              </h2>
-              <p className="text-xs text-slate-550 mt-1 font-sans">
-                Zmień rolę użytkownika lub wyślij nowe zgłoszenie, aby zacząć.
-              </p>
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                <Zap className="w-6 h-6 text-white/10" />
+              </div>
+              <p className="text-xs text-white/20">Wybierz zgłoszenie z listy</p>
             </div>
           )}
         </div>

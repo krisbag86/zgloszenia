@@ -1,19 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  User,
-  Ticket,
-  TicketStatus,
-  TicketPriority,
-  NotificationLog,
-  UserRole,
-  Attachment,
-} from "./types";
+import React, { useEffect } from "react";
+import { useTicketStore } from "./store/useTicketStore";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useToast } from "./hooks/useToast";
 import TicketForm from "./components/TicketForm";
 import TicketDashboard from "./components/TicketDashboard";
 import NotificationCenter from "./components/NotificationCenter";
 import DockerGuide from "./components/DockerGuide";
 import Dashboard from "./components/Dashboard";
-import { ToastContainer, ToastItem, ToastType } from "./components/Toast";
+import { ToastContainer } from "./components/Toast";
 import LoginPage from "./components/LoginPage";
 import {
   Wifi,
@@ -22,755 +16,296 @@ import {
   Layers,
   ShieldCheck,
   Mail,
-  Cpu,
   RefreshCw,
   AlertTriangle,
   BarChart3,
   LogOut,
+  Zap,
+  Terminal,
+  Activity,
 } from "lucide-react";
 
-// Single admin account used for testing
-const ADMIN_USER: User = {
-  id: "admin-1",
-  name: "Administrator",
-  email: "admin@bagietka.pl",
-  role: "admin",
-};
-
-// Hardcoded login credentials — change before going to production
-const VALID_CREDENTIALS = { username: "admin", password: "admin" };
-
-// Support staff list — update with real IT team names/IDs
 const SUPPORT_ENGINEERS = [{ id: "admin-1", name: "Administrator (IT)" }];
 
 export default function App() {
-  const currentUser: User = ADMIN_USER;
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(
-    () => sessionStorage.getItem("it_auth") === "1",
-  );
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [logs, setLogs] = useState<NotificationLog[]>([]);
-  const [activeTab, setActiveTab] = useState<
-    "dashboard" | "analytics" | "submit" | "mailbox" | "docker"
-  >("dashboard");
+  const {
+    isLoggedIn,
+    currentUser,
+    tickets,
+    logs,
+    activeTab,
+    wsConnected,
+    dbMode,
+    activeUsersCount,
+    loading,
+    apiError,
+    unseenUpdates,
+    login,
+    logout,
+    setActiveTab,
+    fetchTickets,
+    fetchNotificationLogs,
+    fetchSystemStatus,
+    submitTicket,
+    updateTicketStatus,
+    updateTicketPriority,
+    assignTicket,
+    postMessage,
+  } = useTicketStore();
 
-  // Real-time Connection status trackers
-  const [wsConnected, setWsConnected] = useState(false);
-  const [dbMode, setDbMode] = useState<"postgresql" | "local-json-memory">(
-    "local-json-memory",
-  );
-  const [activeUsersCount, setActiveUsersCount] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [unseenUpdates, setUnseenUpdates] = useState(0);
+  const { toasts, addToast, dismissToast } = useToast();
+  useWebSocket();
 
-  const wsRef = useRef<WebSocket | null>(null);
-  // Ref so the WS closure always sees the current tab without re-subscribing
-  const activeTabRef = useRef(activeTab);
   useEffect(() => {
-    activeTabRef.current = activeTab;
-    if (activeTab === "dashboard") setUnseenUpdates(0);
-  }, [activeTab]);
-
-  // Core API fetch routines
-  const fetchTickets = useCallback(async () => {
-    try {
-      const resp = await fetch("/api/tickets");
-      if (!resp.ok) throw new Error("Failed to retrieve support queue.");
-      const data = await resp.json();
-      setTickets(data);
-    } catch (err: any) {
-      console.error(err);
-      setApiError("Unable to communicate with the IT Helpdesk API server.");
-    }
-  }, []);
-
-  const fetchNotificationLogs = useCallback(async () => {
-    try {
-      const resp = await fetch("/api/notifications");
-      if (resp.ok) {
-        const data = await resp.json();
-        setLogs(data);
-      }
-    } catch (err) {
-      console.error("Failed to sync outgoing log history:", err);
-    }
-  }, []);
-
-  const fetchSystemStatus = useCallback(async () => {
-    try {
-      const resp = await fetch("/api/status");
-      if (resp.ok) {
-        const data = await resp.json();
-        setDbMode(data.database);
-        setActiveUsersCount(data.connectedClients);
-      }
-    } catch (err) {
-      console.error("System status ping failed:", err);
-    }
-  }, []);
-
-  const addToast = useCallback((type: ToastType, message: string) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, type, message }]);
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  const handleLogin = useCallback(
-    (username: string, password: string): boolean => {
-      if (
-        username === VALID_CREDENTIALS.username &&
-        password === VALID_CREDENTIALS.password
-      ) {
-        setIsLoggedIn(true);
-        sessionStorage.setItem("it_auth", "1");
-        return true;
-      }
-      return false;
-    },
-    [],
-  );
-
-  const handleLogout = useCallback(() => {
-    setIsLoggedIn(false);
-    sessionStorage.removeItem("it_auth");
-  }, []);
-
-  // Set up WebSocket listener
-  useEffect(() => {
-    let active = true;
-    let reconnectTimer: NodeJS.Timeout;
-
-    const connectWS = () => {
-      try {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        // Connect directly to the hosting context
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
-        console.log(`Establishing WebSocket link to: ${wsUrl}`);
-
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          if (!active) return;
-          console.log("Real-time Support WebSocket link established.");
-          setWsConnected(true);
-        };
-
-        ws.onmessage = (event) => {
-          if (!active) return;
-          try {
-            const data = JSON.parse(event.data);
-            console.log("WS Event received:", data);
-
-            if (data.type === "ticket_created") {
-              setTickets((prev) => {
-                if (prev.some((t) => t.id === data.ticket.id)) return prev;
-                return [data.ticket, ...prev];
-              });
-              if (activeTabRef.current !== "dashboard")
-                setUnseenUpdates((c) => c + 1);
-            } else if (data.type === "ticket_updated") {
-              setTickets((prev) =>
-                prev.map((t) => (t.id === data.ticket.id ? data.ticket : t)),
-              );
-              if (activeTabRef.current !== "dashboard")
-                setUnseenUpdates((c) => c + 1);
-            } else if (data.type === "notification_logged") {
-              setLogs((prev) => {
-                if (prev.some((l) => l.id === data.log.id)) return prev;
-                return [data.log, ...prev];
-              });
-            } else if (data.type === "system") {
-              if (data.postgresActive !== undefined) {
-                setDbMode(
-                  data.postgresActive ? "postgresql" : "local-json-memory",
-                );
-              }
-            }
-          } catch (e) {
-            console.error("Failed to interpret payload:", e);
-          }
-        };
-
-        ws.onclose = () => {
-          if (!active) return;
-          console.log("WebSocket link offline. Retrying in 4s...");
-          setWsConnected(false);
-          reconnectTimer = setTimeout(connectWS, 4000);
-        };
-
-        ws.onerror = (err) => {
-          console.error("WS Connection error:", err);
-          ws.close();
-        };
-      } catch (err) {
-        console.error("WS Initialization aborted:", err);
-        setWsConnected(false);
-        reconnectTimer = setTimeout(connectWS, 4000);
-      }
-    };
-
-    connectWS();
-
-    return () => {
-      active = false;
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      clearTimeout(reconnectTimer);
-    };
-  }, []);
-
-  // Load initial dataset once on mount
-  useEffect(() => {
+    if (!isLoggedIn) return;
     const bootstrap = async () => {
-      setLoading(true);
-      setApiError(null);
-      await Promise.all([
-        fetchTickets(),
-        fetchNotificationLogs(),
-        fetchSystemStatus(),
-      ]);
-      setLoading(false);
+      useTicketStore.getState().setLoading(true);
+      useTicketStore.getState().setApiError(null);
+      await Promise.all([fetchTickets(), fetchNotificationLogs(), fetchSystemStatus()]);
+      useTicketStore.getState().setLoading(false);
     };
     bootstrap();
-  }, [fetchTickets, fetchNotificationLogs, fetchSystemStatus]);
+  }, [isLoggedIn, fetchTickets, fetchNotificationLogs, fetchSystemStatus]);
 
-  // Periodic polling helper to synchronize dashboard stats and logs
   useEffect(() => {
-    const timer = setInterval(() => {
-      fetchSystemStatus();
-    }, 15000);
+    if (!isLoggedIn) return;
+    const timer = setInterval(fetchSystemStatus, 15000);
     return () => clearInterval(timer);
-  }, [fetchSystemStatus]);
+  }, [isLoggedIn, fetchSystemStatus]);
 
-  // Submit new IT ticket
-  const handleTicketSubmitted = async (ticketData: {
-    title: string;
-    description: string;
-    category: any;
-    priority: any;
-    attachments: Attachment[];
-  }) => {
-    const payload = {
-      ...ticketData,
-      clientId: currentUser.id,
-      clientName: currentUser.name,
-      clientEmail: currentUser.email,
-    };
-
-    const resp = await fetch("/api/tickets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!resp.ok) {
-      const errorMsg = await resp.json();
-      throw new Error(
-        errorMsg.error || "Failed to file your ticket application.",
-      );
-    }
-
-    // Switch to active portal view to see results
-    setActiveTab("dashboard");
-  };
-
-  // Agent action: Update ticket Status
-  const handleUpdateStatus = async (ticketId: string, status: TicketStatus) => {
+  const handleUpdateStatus = async (ticketId: string, status: any) => {
     try {
-      const resp = await fetch(`/api/tickets/${ticketId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          currentUserRole: currentUser.role,
-          currentUserId: currentUser.id,
-        }),
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.error);
-      }
+      await updateTicketStatus(ticketId, status);
       addToast("success", "Status zgłoszenia zaktualizowany.");
     } catch (err: any) {
       addToast("error", `Błąd aktualizacji statusu: ${err.message}`);
     }
   };
 
-  // Agent action: Update priority urgency
-  const handleUpdatePriority = async (
-    ticketId: string,
-    priority: TicketPriority,
-  ) => {
+  const handleUpdatePriority = async (ticketId: string, priority: any) => {
     try {
-      const resp = await fetch(`/api/tickets/${ticketId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          priority,
-          currentUserRole: currentUser.role,
-          currentUserId: currentUser.id,
-        }),
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.error);
-      }
+      await updateTicketPriority(ticketId, priority);
       addToast("success", "Priorytet zgłoszenia zaktualizowany.");
     } catch (err: any) {
       addToast("error", `Błąd aktualizacji priorytetu: ${err.message}`);
     }
   };
 
-  // Agent action: Allocate engineering staff
-  const handleAssignTicket = async (
-    ticketId: string,
-    agentId: string,
-    agentName: string,
-  ) => {
+  const handleAssignTicket = async (ticketId: string, agentId: string, agentName: string) => {
     try {
-      const resp = await fetch(`/api/tickets/${ticketId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assignedTo: agentId,
-          assignedName: agentName,
-          currentUserRole: currentUser.role,
-          currentUserId: currentUser.id,
-        }),
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.error);
-      }
+      await assignTicket(ticketId, agentId, agentName);
       addToast("success", "Zgłoszenie przypisane do pracownika.");
     } catch (err: any) {
       addToast("error", `Błąd przypisania: ${err.message}`);
     }
   };
 
-  // Common: Post chat replies (Public and private RBAC notes)
-  const handlePostMessage = async (
-    ticketId: string,
-    messageText: string,
-    isInternal: boolean,
-  ) => {
+  const handlePostMessage = async (ticketId: string, messageText: string, isInternal: boolean) => {
     try {
-      const resp = await fetch(`/api/tickets/${ticketId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          senderRole: currentUser.role,
-          message: messageText,
-          isInternal,
-        }),
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.error);
-      }
+      await postMessage(ticketId, messageText, isInternal);
       addToast("success", "Wiadomość wysłana.");
     } catch (err: any) {
       addToast("error", `Błąd wysyłania wiadomości: ${err.message}`);
     }
   };
 
+  const handleTicketSubmitted = async (ticketData: any) => {
+    await submitTicket(ticketData);
+  };
+
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+    return <LoginPage onLogin={login} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row font-sans selection:bg-indigo-100 antialiased">
-      {/* 1. Desktop Left Bento Sidebar Navigation */}
-      <nav
-        id="bento-desktop-sidebar"
-        className="hidden md:flex w-24 bg-indigo-950 text-indigo-200 flex-col items-center py-6 gap-6 shrink-0 border-r border-indigo-900 justify-between"
-      >
-        <div className="flex flex-col items-center gap-5 w-full">
-          {/* Logo element with Bento glow */}
-          <div className="w-11 h-11 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md relative group">
-            <Layers className="w-6 h-6" />
-            <span className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 border-2 border-indigo-950 rounded-full"></span>
+    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col md:flex-row font-sans antialiased overflow-hidden">
+      {/* Animated background grid */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(99,102,241,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(99,102,241,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-600/5 rounded-full blur-[120px]" />
+      </div>
+
+      {/* Sidebar */}
+      <nav className="hidden md:flex w-20 bg-[#0d0d14]/80 backdrop-blur-xl border-r border-white/5 flex-col items-center py-6 gap-4 shrink-0 z-10 justify-between">
+        <div className="flex flex-col items-center gap-4 w-full">
+          {/* Logo */}
+          <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 relative group cursor-pointer">
+            <Zap className="w-5 h-5 text-white" />
+            <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0d0d14] ${wsConnected ? "bg-emerald-400 shadow-emerald-400/50 shadow-sm" : "bg-red-400"}`} />
           </div>
 
-          <div className="w-[60%] border-b border-indigo-900/40 my-1"></div>
+          <div className="w-8 border-b border-white/5 my-1" />
 
-          {/* Action portals navigation buttons */}
-          <div className="flex flex-col gap-3 w-full px-2">
+          {/* Nav buttons */}
+          {[
+            { id: "dashboard" as const, icon: <Terminal className="w-4 h-4" />, label: "Zgłoszenia", badge: unseenUpdates },
+            { id: "analytics" as const, icon: <BarChart3 className="w-4 h-4" />, label: "Analityka", badge: 0 },
+            { id: "submit" as const, icon: <Zap className="w-4 h-4" />, label: "Nowe", badge: 0 },
+            { id: "mailbox" as const, icon: <Mail className="w-4 h-4" />, label: "Poczta", badge: 0 },
+            { id: "docker" as const, icon: <Database className="w-4 h-4" />, label: "Deploy", badge: 0 },
+          ].map((item) => (
             <button
-              id="nav-btn-dashboard"
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all cursor-pointer group select-none ${
-                activeTab === "dashboard"
-                  ? "bg-white/10 text-white font-bold shadow-xs"
-                  : "text-indigo-300/80 hover:bg-white/5 hover:text-indigo-100"
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex flex-col items-center gap-1 py-2.5 px-2 w-full rounded-xl transition-all duration-200 cursor-pointer group select-none relative ${
+                activeTab === item.id
+                  ? "bg-white/[0.08] text-white"
+                  : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
               }`}
-              title="Lista spraw wsparcia IT"
             >
               <div className="relative">
-                <span className="text-xl group-hover:scale-110 transition-transform inline-block">
-                  📋
-                </span>
-                {unseenUpdates > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[8px] font-bold px-1 rounded-full leading-tight min-w-[16px] text-center">
-                    {unseenUpdates > 99 ? "99+" : unseenUpdates}
+                {item.icon}
+                {item.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-rose-500 text-white text-[7px] font-bold px-1 rounded-full min-w-[14px] text-center leading-[14px]">
+                    {item.badge > 99 ? "99+" : item.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[9px] uppercase tracking-wider font-bold">
-                Zgłoszenia
-              </span>
+              <span className="text-[8px] uppercase tracking-[0.15em] font-semibold">{item.label}</span>
+              {activeTab === item.id && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-gradient-to-b from-indigo-400 to-violet-500 rounded-r" />
+              )}
             </button>
-
-            <button
-              id="nav-btn-submit"
-              onClick={() => setActiveTab("submit")}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all cursor-pointer group select-none ${
-                activeTab === "submit"
-                  ? "bg-white/10 text-white font-bold shadow-xs"
-                  : "text-indigo-300/80 hover:bg-white/5 hover:text-indigo-100"
-              }`}
-              title="Zgłoś nowy problem techniczny"
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                ✏️
-              </span>
-              <span className="text-[9px] uppercase tracking-wider font-bold">
-                Nowe
-              </span>
-            </button>
-
-            <button
-              id="nav-btn-mailbox"
-              onClick={() => setActiveTab("mailbox")}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all cursor-pointer group select-none ${
-                activeTab === "mailbox"
-                  ? "bg-white/10 text-white font-bold shadow-xs"
-                  : "text-indigo-300/80 hover:bg-white/5 hover:text-indigo-100"
-              }`}
-              title="Logi powiadomień e-mail SMTP"
-            >
-              <div className="relative">
-                <span className="text-xl group-hover:scale-110 transition-transform">
-                  ✉️
-                </span>
-                {logs.length > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[8px] font-bold px-1 rounded-full">
-                    {logs.length}
-                  </span>
-                )}
-              </div>
-              <span className="text-[9px] uppercase tracking-wider font-bold">
-                E-maile
-              </span>
-            </button>
-
-            <button
-              id="nav-btn-docker"
-              onClick={() => setActiveTab("docker")}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all cursor-pointer group select-none ${
-                activeTab === "docker"
-                  ? "bg-white/10 text-white font-bold shadow-xs"
-                  : "text-indigo-300/80 hover:bg-white/5 hover:text-indigo-100"
-              }`}
-              title="Architektura Docker"
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                🐳
-              </span>
-              <span className="text-[9px] uppercase tracking-wider font-bold">
-                Docker
-              </span>
-            </button>
-
-            <button
-              id="nav-btn-analytics"
-              onClick={() => setActiveTab("analytics")}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all cursor-pointer group select-none ${
-                activeTab === "analytics"
-                  ? "bg-white/10 text-white font-bold shadow-xs"
-                  : "text-indigo-300/80 hover:bg-white/5 hover:text-indigo-100"
-              }`}
-              title="Analityka i raporty"
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                📊
-              </span>
-              <span className="text-[9px] uppercase tracking-wider font-bold">
-                Analizy
-              </span>
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* Bottom: current user + logout */}
-        <div
-          id="bento-sidebar-bottom"
-          className="flex flex-col items-center gap-2 w-full px-2"
-        >
-          <div className="w-[60%] border-t border-indigo-900/40 my-1"></div>
-          <div
-            className="w-10 h-10 rounded-xl bg-indigo-900/50 border border-indigo-800 flex items-center justify-center text-[11px] font-bold text-indigo-100 font-mono tracking-wider select-none shrink-0"
-            title={currentUser.name}
-          >
-            {currentUser.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")}
+        {/* Bottom section */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-1 text-[8px] text-white/20 uppercase tracking-widest">
+            <Activity className={`w-3 h-3 ${wsConnected ? "text-emerald-400" : "text-red-400"}`} />
+            <span>{wsConnected ? "LIVE" : "OFF"}</span>
           </div>
-          <span className="text-[8px] uppercase tracking-widest text-indigo-400 font-bold font-mono">
-            {currentUser.role}
-          </span>
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-indigo-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer select-none"
+            onClick={logout}
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-white/30 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
             title="Wyloguj"
           >
-            <LogOut className="w-3 h-3" />
-            Wyloguj
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </nav>
 
-      {/* 2. Main Workspace Layout */}
-      <div
-        id="bento-workspace-root"
-        className="flex-1 min-w-0 flex flex-col min-h-screen"
-      >
-        {/* Mobile top navigation header (Only visible below md) */}
-        <div
-          id="bento-mobile-header"
-          className="md:hidden bg-indigo-950 px-4 py-3 pb-4 flex flex-col gap-3 border-b border-indigo-900 text-white z-20"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
-                <Layers className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="font-bold text-sm tracking-tight block">
-                  Centrum Wsparcia IT
-                </span>
-                <span className="text-[10px] text-indigo-300 font-mono">
-                  Rola: {currentUser.role.toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            {/* Logout button */}
-            <button
-              onClick={handleLogout}
-              className="w-8 h-8 rounded-full bg-indigo-900 border border-indigo-700 flex items-center justify-center text-indigo-300 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-              title="Wyloguj"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
+      {/* Mobile top bar */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0d0d14]/80 backdrop-blur-xl border-b border-white/5 z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center">
+            <Zap className="w-4 h-4 text-white" />
           </div>
+          <span className="text-sm font-bold tracking-tight">IT Support</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-emerald-400" : "bg-red-400"}`} />
+          <button onClick={logout} className="text-white/30 hover:text-rose-400 cursor-pointer">
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
-          {/* Selector Navigation Row */}
-          <div className="grid grid-cols-5 gap-1 text-center text-[9px] select-none font-bold">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`py-2 rounded-lg transition-colors cursor-pointer ${
-                activeTab === "dashboard"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-indigo-900/50 text-indigo-300"
-              }`}
-            >
-              <span className="relative inline-flex items-center gap-1">
-                📋 Zgł.
-                {unseenUpdates > 0 && (
-                  <span className="bg-rose-500 text-white text-[7px] font-bold px-1 rounded-full leading-tight">
-                    {unseenUpdates > 99 ? "99+" : unseenUpdates}
-                  </span>
-                )}
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab("submit")}
-              className={`py-2 rounded-lg transition-colors cursor-pointer ${
-                activeTab === "submit"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-indigo-900/50 text-indigo-300"
-              }`}
-            >
-              ✏️ Nowe
-            </button>
-            <button
-              onClick={() => setActiveTab("mailbox")}
-              className={`py-2 rounded-lg transition-colors cursor-pointer relative ${
-                activeTab === "mailbox"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-indigo-900/50 text-indigo-300"
-              }`}
-            >
-              ✉️ Mail
-              {logs.length > 0 && (
-                <span className="absolute -top-1 right-0 bg-red-500 text-white text-[7px] px-1 rounded-full">
-                  {logs.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("docker")}
-              className={`py-2 rounded-lg transition-colors cursor-pointer ${
-                activeTab === "docker"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-indigo-900/50 text-indigo-300"
-              }`}
-            >
-              🐳 Docker
-            </button>
-            <button
-              onClick={() => setActiveTab("analytics")}
-              className={`py-2 rounded-lg transition-colors cursor-pointer ${
-                activeTab === "analytics"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-indigo-900/50 text-indigo-300"
-              }`}
-            >
-              📊 Analizy
-            </button>
+      {/* Mobile tab bar */}
+      <div className="md:hidden flex items-center gap-1 px-2 py-2 bg-[#0d0d14]/60 backdrop-blur border-b border-white/5 overflow-x-auto z-10">
+        {[
+          { id: "dashboard" as const, label: "Zgłoszenia" },
+          { id: "analytics" as const, label: "Analityka" },
+          { id: "submit" as const, label: "Nowe" },
+          { id: "mailbox" as const, label: "Poczta" },
+          { id: "docker" as const, label: "Deploy" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === item.id
+                ? "bg-white/10 text-white"
+                : "text-white/40 hover:text-white/60"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto relative z-10">
+        {/* Top status bar */}
+        <div className="sticky top-0 z-20 px-6 py-3 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                {activeTab === "dashboard" && "Panel Zgłoszeń"}
+                {activeTab === "analytics" && "Analityka & Raporty"}
+                {activeTab === "submit" && "Nowe Zgłoszenie"}
+                {activeTab === "mailbox" && "Centrum Powiadomień"}
+                {activeTab === "docker" && "Wdrożenie & Infrastruktura"}
+              </h1>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Status chips */}
+              <div className="hidden sm:flex items-center gap-2">
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
+                  wsConnected
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                    : "border-red-500/20 bg-red-500/10 text-red-400"
+                }`}>
+                  {wsConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                  {wsConnected ? "POŁĄCZONO" : "ROZŁĄCZONO"}
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border border-violet-500/20 bg-violet-500/10 text-violet-400">
+                  <Database className="w-3 h-3" />
+                  {dbMode === "postgresql" ? "PostgreSQL" : "JSON"}
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-white/50">
+                  <ShieldCheck className="w-3 h-3" />
+                  {currentUser.name}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  fetchTickets();
+                  fetchNotificationLogs();
+                  fetchSystemStatus();
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-all cursor-pointer"
+                title="Odśwież"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* 3. Top Header Panel (ServiceOps Styled) */}
-        <header
-          id="bento-top-header"
-          className="bg-white border-b border-slate-200 py-6 px-6 md:px-8"
-        >
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 font-sans flex items-center gap-2">
-                Panel ServiceOps
-              </h1>
-              <p className="text-slate-550 text-xs mt-1">
-                Witaj z powrotem,{" "}
-                <strong className="text-slate-700 font-semibold">
-                  {currentUser.name}
-                </strong>{" "}
-                • Uprawnienia sektora:{" "}
-                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border border-slate-200 uppercase">
-                  {currentUser.role}
-                </span>
-              </p>
-            </div>
-
-            {/* Live system telemetry trackers styled as Bento chips */}
-            <div className="flex flex-wrap items-center gap-3 text-xs w-full sm:w-auto">
-              {/* WebSocket Ping status */}
-              <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                  wsConnected
-                    ? "bg-emerald-50 border-emerald-250 text-emerald-800"
-                    : "bg-rose-50 border-rose-250 text-rose-800"
-                }`}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  {wsConnected && (
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  )}
-                  <span
-                    className={`relative inline-flex rounded-full h-2 w-2 ${wsConnected ? "bg-emerald-500" : "bg-rose-500"}`}
-                  ></span>
-                </span>
-                <span>
-                  {wsConnected ? "Połączenie aktywne" : "WebSocket offline"}
-                </span>
-              </div>
-
-              {/* Database indicator */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-850 shadow-2xs">
-                <Database className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <span>
-                  Baza danych:{" "}
-                  <strong className="font-bold">{dbMode.toUpperCase()}</strong>
-                </span>
-              </div>
-
-              {/* Quick action portal link button tailored to role */}
-              {activeTab !== "submit" && (
-                <button
-                  onClick={() => setActiveTab("submit")}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-xs shadow-xs transition-all cursor-pointer select-none"
-                >
-                  + Nowe zgłoszenie
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {/* 4. Primary Workspace Content Panel */}
-        <main
-          id="bento-main-workspace"
-          className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-6 space-y-6"
-        >
-          {/* Global Connectivity Errors Banner */}
+        {/* Content area */}
+        <div className="p-4 md:p-6">
           {apiError && (
-            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-2xl p-5 shadow-2xs hover:shadow-xs transition-shadow">
-              <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <strong className="font-bold">
-                  Przerwa w połączeniu z bazą danych:
-                </strong>
-                <p className="leading-normal">
-                  {apiError} Sprawdź logi piaskownicy systemowej, aby
-                  zweryfikować stan synchronizacji schematu lub poświadczenia
-                  bazy.
-                </p>
-                <button
-                  onClick={async () => {
-                    setApiError(null);
-                    setLoading(true);
-                    await Promise.all([
-                      fetchTickets(),
-                      fetchNotificationLogs(),
-                      fetchSystemStatus(),
-                    ]);
-                    setLoading(false);
-                  }}
-                  className="mt-2.5 flex items-center gap-1.5 bg-white border border-rose-205 hover:bg-rose-100/30 text-[10px] text-rose-800 font-bold px-3 py-1 rounded-lg shadow-2xs cursor-pointer"
-                >
-                  <RefreshCw className="w-3 h-3" /> Ponów połączenie
-                </button>
-              </div>
+            <div className="mb-4 flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl px-4 py-3">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {apiError}
             </div>
           )}
 
-          {/* Dynamic inner container router */}
           {loading ? (
-            <div className="bg-white rounded-2xl shadow-xs border border-slate-205 py-36 text-center flex flex-col items-center justify-center">
-              <div className="animate-spin rounded-full h-9 w-9 border-3 border-indigo-600 border-t-transparent mb-4"></div>
-              <p className="text-xs text-slate-500 font-semibold tracking-wide">
-                Pobieranie klastrów systemowych. Proszę czekać...
-              </p>
+            <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+                <span className="text-xs text-white/30 uppercase tracking-widest">Ładowanie systemu...</span>
+              </div>
             </div>
           ) : (
-            <div
-              id="bento-inner-view-container"
-              className="fade-in duration-300"
-            >
+            <>
               {activeTab === "dashboard" && (
                 <TicketDashboard
                   tickets={tickets}
                   currentUser={currentUser}
-                  supportEngineers={SUPPORT_ENGINEERS}
                   onUpdateStatus={handleUpdateStatus}
                   onUpdatePriority={handleUpdatePriority}
                   onAssignTicket={handleAssignTicket}
                   onPostMessage={handlePostMessage}
+                  supportEngineers={SUPPORT_ENGINEERS}
                 />
               )}
-
+              {activeTab === "analytics" && (
+                <Dashboard onError={(msg) => addToast("error", msg)} />
+              )}
               {activeTab === "submit" && (
                 <TicketForm
                   clientId={currentUser.id}
@@ -779,50 +314,15 @@ export default function App() {
                   onTicketSubmitted={handleTicketSubmitted}
                 />
               )}
-
               {activeTab === "mailbox" && (
-                <NotificationCenter
-                  logs={logs}
-                  onRefreshLogs={fetchNotificationLogs}
-                />
+                <NotificationCenter logs={logs} onRefreshLogs={fetchNotificationLogs} />
               )}
-
               {activeTab === "docker" && <DockerGuide />}
-
-              {activeTab === "analytics" && <Dashboard onError={setApiError} />}
-            </div>
+            </>
           )}
-        </main>
+        </div>
+      </main>
 
-        {/* 5. Sticky Professional Technical Footer */}
-        <footer
-          id="bento-footer"
-          className="bg-slate-900 text-slate-400 border-t border-slate-950 py-6 text-center text-xs space-y-1.5 mt-auto"
-        >
-          <p className="text-slate-300 font-sans font-medium tracking-wide">
-            Panel Zarządzania Zgłoszeniami Wsparcia IT &copy;{" "}
-            {new Date().getFullYear()} – bento panel
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
-            <span>
-              Użytkownik:{" "}
-              <strong className="text-slate-300">{currentUser.name}</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Rola dostępu:{" "}
-              <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-[9px] font-bold uppercase">
-                {currentUser.role}
-              </span>
-            </span>
-            <span>•</span>
-            <span>
-              Środowisko:{" "}
-              <span className="text-indigo-400 font-mono">v22.x</span>
-            </span>
-          </div>
-        </footer>
-      </div>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
