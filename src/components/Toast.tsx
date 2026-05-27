@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
+import React, { useEffect } from "react";
+import { CheckCircle2, AlertTriangle, Info, AlertOctagon, X } from "lucide-react";
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = "success" | "error" | "info" | "warning";
 
 export interface ToastItem {
   id: string;
@@ -11,56 +11,55 @@ export interface ToastItem {
 
 const DISMISS_AFTER_MS = 4500;
 
-function ToastEntry({
-  toast,
-  onDismiss,
-}: {
-  toast: ToastItem;
-  onDismiss: (id: string) => void;
-}) {
+function ToastEntry({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
   useEffect(() => {
     const timer = setTimeout(() => onDismiss(toast.id), DISMISS_AFTER_MS);
     return () => clearTimeout(timer);
   }, [toast.id, onDismiss]);
 
-  const config = {
+  const config: Record<ToastType, { bar: string; border: string; icon: React.ReactNode; text: string }> = {
     success: {
-      bar: 'bg-emerald-500',
-      border: 'border-emerald-150',
-      icon: <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />,
-      text: 'text-emerald-900',
+      bar: "bg-emerald-500",
+      border: "border-emerald-500/20",
+      icon: <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />,
+      text: "text-emerald-300",
     },
     error: {
-      bar: 'bg-rose-500',
-      border: 'border-rose-150',
-      icon: <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />,
-      text: 'text-rose-900',
+      bar: "bg-rose-500",
+      border: "border-rose-500/20",
+      icon: <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />,
+      text: "text-rose-300",
+    },
+    warning: {
+      bar: "bg-amber-500",
+      border: "border-amber-500/20",
+      icon: <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0" />,
+      text: "text-amber-300",
     },
     info: {
-      bar: 'bg-indigo-500',
-      border: 'border-indigo-150',
-      icon: <Info className="w-4 h-4 text-indigo-600 shrink-0" />,
-      text: 'text-slate-800',
+      bar: "bg-indigo-500",
+      border: "border-indigo-500/20",
+      icon: <Info className="w-4 h-4 text-indigo-400 shrink-0" />,
+      text: "text-white/70",
     },
-  }[toast.type];
+  };
+
+  const c = config[toast.type];
 
   return (
     <div
-      className={`flex items-stretch w-80 bg-white rounded-2xl border ${config.border} shadow-lg overflow-hidden`}
+      className={`flex items-stretch w-80 bg-[#0d0d14]/95 backdrop-blur-xl rounded-xl border ${c.border} shadow-2xl overflow-hidden`}
       role="alert"
     >
-      {/* Left accent bar */}
-      <div className={`w-1 shrink-0 ${config.bar}`} />
-
-      {/* Content */}
+      <div className={`w-1 shrink-0 ${c.bar}`} />
       <div className="flex items-start gap-2.5 px-3.5 py-3 flex-1 min-w-0">
-        {config.icon}
-        <span className={`text-xs font-medium leading-relaxed flex-1 ${config.text}`}>
+        {c.icon}
+        <span className={`text-xs font-medium leading-relaxed flex-1 ${c.text}`}>
           {toast.message}
         </span>
         <button
           onClick={() => onDismiss(toast.id)}
-          className="shrink-0 text-slate-350 hover:text-slate-600 transition-colors mt-0.5 cursor-pointer"
+          className="shrink-0 text-white/20 hover:text-white/50 transition-colors mt-0.5 cursor-pointer"
           aria-label="Zamknij powiadomienie"
         >
           <X className="w-3.5 h-3.5" />
@@ -70,13 +69,7 @@ function ToastEntry({
   );
 }
 
-export function ToastContainer({
-  toasts,
-  onDismiss,
-}: {
-  toasts: ToastItem[];
-  onDismiss: (id: string) => void;
-}) {
+export function ToastContainer({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: string) => void }) {
   if (toasts.length === 0) return null;
 
   return (

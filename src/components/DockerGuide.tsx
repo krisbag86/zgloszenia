@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Terminal, Cpu, Database, Command, FileCode, CheckCircle2 } from 'lucide-react';
+import React, { useState } from "react";
+import { Terminal, Cpu, Database, Command, FileCode, CheckCircle2 } from "lucide-react";
 
 export default function DockerGuide() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -7,9 +7,7 @@ export default function DockerGuide() {
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(id);
-    setTimeout(() => {
-      setCopiedText(null);
-    }, 2000);
+    setTimeout(() => setCopiedText(null), 2000);
   };
 
   const dockerfileContent = `# ================================================
@@ -99,111 +97,79 @@ volumes:
 `;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 space-y-6 shadow-2xs hover:shadow-xs transition-shadow duration-300">
-      <div className="pb-4 border-b border-slate-100">
-        <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 leading-none font-sans tracking-tight">
-          <Cpu className="w-5 h-5 text-indigo-600" />
-          Schemat wdrożenia lokalnego Docker + PostgreSQL
+    <div className="bg-white/[0.03] backdrop-blur border border-white/[0.06] rounded-xl p-6 md:p-8 space-y-6">
+      <div className="pb-4 border-b border-white/[0.06]">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 tracking-tight">
+          <Cpu className="w-4 h-4 text-indigo-400" />
+          Wdrożenie Docker + PostgreSQL
         </h2>
-        <p className="text-xs text-slate-500 mt-2 leading-relaxed font-sans">
-          Aplikacja jest w pełni wstępnie skonfigurowana do budowania i wdrażania środowisk wielokontenerowych za pomocą Docker Compose i wydajnej bazy danych PostgreSQL.
+        <p className="text-[10px] text-white/30 mt-1.5 tracking-wide">
+          Aplikacja jest w pełni skonfigurowana do budowania i wdrażania środowisk wielokontenerowych.
         </p>
       </div>
 
-      {/* Grid boxes for settings (Bento Blocks) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-start gap-3">
-          <Database className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="font-extrabold text-xs text-slate-800">Schemat bazy danych</h4>
-            <p className="text-[10px] text-slate-400 mt-1.5 leading-normal font-sans font-medium">
-              Relacyjny schemat bazy PostgreSQL obsługujący stan zgłoszeń IT, wątki wiadomości diagnostycznych oraz logi powiadomień.
-            </p>
+      {/* Info cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {[
+          { icon: <Database className="w-4 h-4 text-indigo-400" />, title: "Schemat bazy danych", desc: "Relacyjny schemat PostgreSQL obsługujący zgłoszenia, wątki wiadomości i logi powiadomień." },
+          { icon: <Terminal className="w-4 h-4 text-amber-400" />, title: "Usługi WebSockets", desc: "Porty automatycznie dostosowane do aktualizacji statusów w czasie rzeczywistym." },
+          { icon: <Command className="w-4 h-4 text-emerald-400" />, title: "Gotowy na produkcję", desc: "Wieloetapowe kontenery Alpine Linux redukują rozmiar obrazów i poprawiają bezpieczeństwo." },
+        ].map((card) => (
+          <div key={card.title} className="bg-white/[0.02] border border-white/[0.04] rounded-lg p-4 flex items-start gap-3">
+            <div className="mt-0.5 shrink-0">{card.icon}</div>
+            <div>
+              <h4 className="text-[10px] font-bold text-white/60">{card.title}</h4>
+              <p className="text-[9px] text-white/25 mt-1 leading-relaxed">{card.desc}</p>
+            </div>
           </div>
-        </div>
-
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-start gap-3">
-          <Terminal className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="font-extrabold text-xs text-slate-800">Usługi WebSockets</h4>
-            <p className="text-[10px] text-slate-400 mt-1.5 leading-normal font-sans font-medium">
-              Porty są automatycznie dostosowane do obsługi równoległych aktualizacji statusów w czasie rzeczywistym przechodzących przez jeden wewnętrzny port.
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-start gap-3">
-          <Command className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="font-extrabold text-xs text-slate-800">Gotowy na produkcję</h4>
-            <p className="text-[10px] text-slate-400 mt-1.5 leading-normal font-sans font-medium">
-              Wieloetapowe kontenery Alpine Linux redukują rozmiar obrazów, poprawiając bezpieczeństwo w trakcie wdrożeń.
-            </p>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Steps list */}
-      <div className="space-y-4 pt-2">
-        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Polecenia szybkiego startu</h3>
-        <div className="bg-slate-900 text-slate-100 rounded-xl p-5 font-mono text-[11px] overflow-x-auto space-y-3.5 relative shadow-inner select-all">
+      {/* Commands */}
+      <div className="space-y-3">
+        <h3 className="text-[9px] font-bold text-white/25 uppercase tracking-[0.15em]">Polecenia szybkiego startu</h3>
+        <div className="bg-[#0d0d14] border border-white/[0.06] rounded-xl p-5 font-mono text-[11px] overflow-x-auto space-y-3 relative">
           <button
-            onClick={() => copyToClipboard(`docker compose up --build -d`, 'cmd')}
-            className="absolute right-4 top-4 bg-slate-800 text-[10px] text-slate-300 hover:text-white hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700 font-bold cursor-pointer transition-colors"
+            onClick={() => copyToClipboard("docker compose up --build -d", "cmd")}
+            className="absolute right-4 top-4 bg-white/[0.05] text-[10px] text-white/40 hover:text-white/70 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/[0.06] font-bold cursor-pointer transition-all"
           >
-            {copiedText === 'cmd' ? '📋 Skopiowano' : 'Kopiuj polecenie'}
+            {copiedText === "cmd" ? "Skopiowano" : "Kopiuj"}
           </button>
-          <div className="text-slate-500"># 1. Uruchom całe środowisko IT (Aplikacja + PostgreSQL + pgAdmin) w tle</div>
+          <div className="text-white/20"># 1. Uruchom środowisko (Aplikacja + PostgreSQL + pgAdmin)</div>
           <div className="text-emerald-400 font-bold">docker compose up --build -d</div>
-          
-          <div className="text-slate-500 pt-1"># 2. Zweryfikuj, czy usługi działają prawidłowo w logach kontenera</div>
+          <div className="text-white/20 pt-1"># 2. Sprawdź logi</div>
           <div className="text-emerald-400 font-bold">docker compose logs -f web-app</div>
-
-          <div className="text-slate-500 pt-1.5 font-bold uppercase tracking-wider text-[9px]">➜ Adresy dostępowe usług:</div>
-          <div className="flex flex-col gap-1 pl-2 text-slate-305 font-sans font-medium">
-            <div>🚀 <span className="font-bold text-slate-100">Portal Wsparcia IT:</span> <a href="http://localhost:3000" className="text-indigo-400 underline" target="_blank" rel="noopener noreferrer">http://localhost:3000</a></div>
-            <div>📂 <span className="font-bold text-slate-100">Baza pgAdmin Panel:</span> <a href="http://localhost:5050" className="text-amber-400 underline" target="_blank" rel="noopener noreferrer">http://localhost:5050</a> <span className="text-slate-400 text-xs">(admin@bagietka.pl / AdminPassword_99)</span></div>
+          <div className="text-white/20 pt-1.5 font-bold uppercase tracking-wider text-[9px]">Adresy dostępowe:</div>
+          <div className="flex flex-col gap-1 pl-2 text-white/40">
+            <div><span className="font-bold text-white/60">Portal Wsparcia IT:</span> <a href="http://localhost:3000" className="text-indigo-400 underline" target="_blank" rel="noopener noreferrer">http://localhost:3000</a></div>
+            <div><span className="font-bold text-white/60">pgAdmin Panel:</span> <a href="http://localhost:5050" className="text-amber-400 underline" target="_blank" rel="noopener noreferrer">http://localhost:5050</a> <span className="text-white/20 text-xs">(admin@bagietka.pl / AdminPassword_99)</span></div>
           </div>
         </div>
       </div>
 
-      {/* Toggle View of docker files */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4">
-        {/* Box-1: Dockerfile code viewer */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center px-1">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-              <FileCode className="w-3.5 h-3.5" /> Dockerfile
-            </span>
-            <button
-              onClick={() => copyToClipboard(dockerfileContent, 'df')}
-              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-805 cursor-pointer"
-            >
-              {copiedText === 'df' ? '📋 Skopiowano!' : 'Kopiuj kod'}
-            </button>
+      {/* Docker file viewers */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        {[
+          { id: "df", label: "Dockerfile", icon: <FileCode className="w-3 h-3" />, content: dockerfileContent },
+          { id: "dc", label: "docker-compose.yml", icon: <Database className="w-3 h-3" />, content: dockerComposeContent },
+        ].map((file) => (
+          <div key={file.id} className="space-y-2">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/25 flex items-center gap-1.5">
+                {file.icon} {file.label}
+              </span>
+              <button
+                onClick={() => copyToClipboard(file.content, file.id)}
+                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer"
+              >
+                {copiedText === file.id ? "Skopiowano!" : "Kopiuj kod"}
+              </button>
+            </div>
+            <pre className="p-3.5 bg-[#0d0d14] border border-white/[0.06] rounded-xl text-[9px] font-mono text-white/40 overflow-x-auto max-h-[350px] leading-relaxed">
+              {file.content}
+            </pre>
           </div>
-          <pre className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[9px] font-mono text-slate-700 overflow-x-auto max-h-[350px] leading-relaxed shadow-inner">
-            {dockerfileContent}
-          </pre>
-        </div>
-
-        {/* Box-2: Docker Compose code viewer */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center px-1">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5" /> docker-compose.yml
-            </span>
-            <button
-              onClick={() => copyToClipboard(dockerComposeContent, 'dc')}
-              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-805 cursor-pointer"
-            >
-              {copiedText === 'dc' ? '📋 Skopiowano!' : 'Kopiuj kod'}
-            </button>
-          </div>
-          <pre className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[9px] font-mono text-slate-700 overflow-x-auto max-h-[350px] leading-relaxed shadow-inner">
-            {dockerComposeContent}
-          </pre>
-        </div>
+        ))}
       </div>
     </div>
   );
